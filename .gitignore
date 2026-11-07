@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Production and Build Outputs
+dist/
+release/
+out/
+build/
+*.dmg
+*.zip
+*.exe
+*.AppImage
+
+# Logs and Runtime data
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.system_generated/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.pfx
+*.cer
+*.crt
+*.key
+
+# Editor / OS directories
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

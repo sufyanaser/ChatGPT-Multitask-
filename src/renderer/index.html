@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChatGPT Multitask</title>
+  <link rel="stylesheet" href="index.css">
+</head>
+<body class="dark">
+  <div id="tab-bar-container" class="tab-bar-container">
+    <!-- Window drag handle / macOS traffic light spacer -->
+    <div id="traffic-light-spacer" class="traffic-light-spacer"></div>
+
+    <!-- Navigation buttons (Back, Forward, Reload) -->
+    <div class="nav-controls">
+      <button id="btn-back" class="nav-btn" title="Back" disabled>
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+          <path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
+        </svg>
+      </button>
+      <button id="btn-forward" class="nav-btn" title="Forward" disabled>
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+          <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+        </svg>
+      </button>
+      <button id="btn-reload" class="nav-btn" title="Reload Tab (Cmd+R)">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+          <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+          <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Tabs List -->
+    <div id="tabs-list" class="tabs-list">
+      <!-- Dynamic Tabs inserted here -->
+    </div>
+
+    <!-- New Tab Button -->
+    <button id="btn-new-tab" class="new-tab-btn" title="New Tab (Cmd+T / Ctrl+T)">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+        <path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2z"/>
+      </svg>
+    </button>
+
+    <!-- Empty draggable area to fill the rest of the tab bar -->
+    <div class="drag-spacer"></div>
+  </div>
+
+  <script src="index.js"></script>
+</body>
+</html>

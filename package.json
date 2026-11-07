@@ -1,0 +1,31 @@
+{
+  "name": "chatgpt-multitask",
+  "version": "0.1.0",
+  "description": "Cross-platform desktop application for official ChatGPT with native multi-tab functionality",
+  "main": "dist/main/index.js",
+  "author": "ChatGPT Multitask Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sufyanaser/ChatGPT-Multitask-.git"
+  },
+  "scripts": {
+    "clean": "rimraf dist",
+    "build:tsc": "tsc",
+    "build": "npm run clean && tsc && node scripts/copy-assets.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "npm run typecheck",
+    "test": "node scripts/run-tests.js",
+    "start": "npm run build && electron ."
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "electron": "^34.5.8",
+    "electron-builder": "^26.18.0",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.8.2"
+  }
+}
