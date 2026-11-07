@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { TabStatePayload, ThemeMode, ThemeStatePayload } from '../common/types';
+import type { TabStatePayload, ThemeMode, ThemeStatePayload, TabTypeOverride } from '../common/types';
 
 const IPC = {
   TABS_STATE_UPDATE: 'tabs:state-update',
@@ -14,6 +14,8 @@ const IPC = {
   TAB_REORDER: 'tabs:reorder',
   TAB_NAVIGATE_BACK: 'tabs:go-back',
   TAB_NAVIGATE_FORWARD: 'tabs:go-forward',
+  TAB_SET_TYPE: 'tabs:set-type',
+  TAB_SHOW_CONTEXT_MENU: 'tabs:show-context-menu',
   GET_INITIAL_STATE: 'tabs:get-initial-state',
   THEME_GET: 'theme:get',
   GET_THEME: 'theme:get',
@@ -32,6 +34,8 @@ export interface ElectronTabAPI {
   reorderTabs: (sourceIndex: number, targetIndex: number) => void;
   navigateBack: (tabId?: string) => void;
   navigateForward: (tabId?: string) => void;
+  setTabType: (tabId: string, typeOverride: TabTypeOverride) => void;
+  showTabContextMenu: (tabId: string) => void;
   getInitialState: () => Promise<TabStatePayload>;
   onStateUpdate: (callback: (payload: TabStatePayload) => void) => () => void;
   getTheme: () => Promise<ThemeStatePayload | 'dark' | 'light'>;
@@ -73,6 +77,14 @@ const api: ElectronTabAPI = {
 
   navigateForward: (tabId?: string) => {
     ipcRenderer.send(IPC.TAB_NAVIGATE_FORWARD, tabId);
+  },
+
+  setTabType: (tabId: string, typeOverride: TabTypeOverride) => {
+    ipcRenderer.send(IPC.TAB_SET_TYPE, { tabId, typeOverride });
+  },
+
+  showTabContextMenu: (tabId: string) => {
+    ipcRenderer.send(IPC.TAB_SHOW_CONTEXT_MENU, tabId);
   },
 
   getInitialState: async (): Promise<TabStatePayload> => {

@@ -210,7 +210,8 @@ button:focus-visible {
   height: 32px;
   min-width: 140px;
   max-width: 220px;
-  padding: 0 8px 0 10px;
+  padding-inline-start: 10px;
+  padding-inline-end: 8px;
   background-color: var(--bg-tab);
   border: 1px solid var(--tab-border);
   border-radius: 7px;
@@ -236,23 +237,49 @@ button:focus-visible {
 }
 
 .tab-item.drag-over {
-  border-left: 2px solid var(--drag-border);
+  border-inline-start: 2px solid var(--drag-border);
 }
 
+/* Tab Icon / Type Indicator */
 .tab-icon-wrapper {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 16px;
   height: 16px;
-  margin-right: 7px;
+  margin-inline-end: 7px;
   flex-shrink: 0;
 }
 
-.tab-favicon {
+.tab-type-icon {
   width: 14px;
   height: 14px;
-  border-radius: 2px;
+  flex-shrink: 0;
+  display: block;
+  transition: color 0.15s ease;
+}
+
+/* Standard Chat: Neutral gray */
+.tab-type-chat {
+  color: var(--text-secondary);
+}
+
+/* Work: Subtle vibrant blue */
+.tab-type-work {
+  color: #3b82f6;
+}
+
+body.theme-light .tab-type-work {
+  color: #2563eb;
+}
+
+body.theme-dark .tab-type-work {
+  color: #60a5fa;
+}
+
+/* Unknown: Neutral gray */
+.tab-type-unknown {
+  color: var(--text-muted);
 }
 
 .tab-spinner {
@@ -274,7 +301,7 @@ button:focus-visible {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding-right: 4px;
+  padding-inline-end: 4px;
   unicode-bidi: plaintext;
   text-align: start;
   line-height: 1.2;
@@ -293,6 +320,7 @@ button:focus-visible {
   cursor: pointer;
   flex-shrink: 0;
   opacity: 0.6;
+  margin-inline-start: 2px;
   transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 

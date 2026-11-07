@@ -1,3 +1,6 @@
+export type ConversationType = 'chat' | 'work' | 'unknown';
+export type TabTypeOverride = 'auto' | 'chat' | 'work';
+
 export interface TabItem {
   id: string;
   title: string;
@@ -6,12 +9,16 @@ export interface TabItem {
   canGoBack: boolean;
   canGoForward: boolean;
   favicon?: string;
+  conversationType: ConversationType;
+  typeOverride: TabTypeOverride;
 }
 
 export interface TabPersistedData {
   id: string;
   url: string;
   title: string;
+  typeOverride?: TabTypeOverride;
+  conversationType?: ConversationType;
 }
 
 export interface TabsPersistedState {
@@ -57,6 +64,8 @@ export const IPC_CHANNELS = {
   TAB_REORDER: 'tabs:reorder',
   TAB_NAVIGATE_BACK: 'tabs:go-back',
   TAB_NAVIGATE_FORWARD: 'tabs:go-forward',
+  TAB_SET_TYPE: 'tabs:set-type',
+  TAB_SHOW_CONTEXT_MENU: 'tabs:show-context-menu',
   GET_INITIAL_STATE: 'tabs:get-initial-state',
 
   // Theme Sync

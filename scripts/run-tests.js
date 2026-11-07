@@ -46,4 +46,19 @@ if (zoomRes.status !== 0) {
   process.exit(zoomRes.status || 1);
 }
 
+// 4. Run tab indicators live verification
+console.log('--- Step 4: Tab Indicators & Regression Live Verification ---');
+const indicatorRes = spawnSync(electronBin, [path.join(__dirname, 'verify-tab-indicators.js')], {
+  stdio: 'inherit',
+  env: {
+    ...process.env,
+    ELECTRON_ENABLE_LOGGING: '1'
+  }
+});
+
+if (indicatorRes.status !== 0) {
+  console.error('Tab Indicators live verification failed with code', indicatorRes.status);
+  process.exit(indicatorRes.status || 1);
+}
+
 console.log('\nAll tests passed successfully!');

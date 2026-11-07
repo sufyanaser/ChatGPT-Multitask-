@@ -1,6 +1,6 @@
-import { BrowserWindow, WebContentsView, shell } from 'electron';
+import { BrowserWindow, Menu, WebContentsView, shell } from 'electron';
 import { randomUUID } from 'crypto';
-import { TabItem, TabStatePayload, IPC_CHANNELS } from '../common/types';
+import { TabItem, TabStatePayload, IPC_CHANNELS, ConversationType, TabTypeOverride } from '../common/types';
 import { SessionManager } from './session-manager';
 import { TabStateStore } from './tab-state-store';
 
@@ -16,6 +16,8 @@ interface ManagedTab {
   canGoBack: boolean;
   canGoForward: boolean;
   favicon?: string;
+  conversationType: ConversationType;
+  typeOverride: TabTypeOverride;
 }
 
 export class TabManager {
@@ -87,11 +89,79 @@ export class TabManager {
     return this.setZoomFactor(1.0);
   }
 
+  public resolveConversationType(
+    _url: string,
+    override: TabTypeOverride,
+    _persistedType?: ConversationType
+  ): ConversationType {
+    if (override === 'chat') return 'chat';
+    if (override === 'work') return 'work';
+    // When override is 'auto':
+    // Without unsupported scraping, arbitrary title parsing, or private API sniffing,
+    // we return 'unknown' to avoid mislabeling standard conversations as work or vice-versa.
+    return 'unknown';
+  }
+
+  public setTabTypeOverride(tabId: string, override: TabTypeOverride): void {
+    const tab = this.tabs.find(t => t.id === tabId);
+    if (!tab) return;
+    tab.typeOverride = override;
+    tab.conversationType = this.resolveConversationType(tab.url, override);
+    this.notifyStateChanged();
+    this.persistState();
+  }
+
+  public showTabContextMenu(tabId: string): void {
+    const tab = this.tabs.find(t => t.id === tabId);
+    if (!tab || this.window.isDestroyed()) return;
+
+    const currentOverride = tab.typeOverride || 'auto';
+
+    const menu = Menu.buildFromTemplate([
+      {
+        label: 'Set tab type',
+        submenu: [
+          {
+            label: 'Automatic',
+            type: 'radio',
+            checked: currentOverride === 'auto',
+            click: () => this.setTabTypeOverride(tabId, 'auto')
+          },
+          {
+            label: 'Chat',
+            type: 'radio',
+            checked: currentOverride === 'chat',
+            click: () => this.setTabTypeOverride(tabId, 'chat')
+          },
+          {
+            label: 'Work',
+            type: 'radio',
+            checked: currentOverride === 'work',
+            click: () => this.setTabTypeOverride(tabId, 'work')
+          }
+        ]
+      },
+      { type: 'separator' },
+      {
+        label: 'Reload Tab',
+        click: () => this.reloadTab(tabId)
+      },
+      {
+        label: 'Close Tab',
+        click: () => this.closeTab(tabId)
+      }
+    ]);
+
+    menu.popup({ window: this.window });
+  }
+
   public createTab(
     url: string = DEFAULT_URL,
     selectAfterCreation: boolean = true,
     customId?: string,
-    initialTitle?: string
+    initialTitle?: string,
+    typeOverride: TabTypeOverride = 'auto',
+    initialType?: ConversationType
   ): ManagedTab {
     const tabId = customId || randomUUID();
     const session = this.sessionManager.getSession();
@@ -114,6 +184,8 @@ export class TabManager {
       console.warn('[TabManager] Initial zoom set error:', err);
     }
 
+    const conversationType = this.resolveConversationType(url, typeOverride, initialType);
+
     const newTab: ManagedTab = {
       id: tabId,
       view,
@@ -121,7 +193,9 @@ export class TabManager {
       url,
       isLoading: true,
       canGoBack: false,
-      canGoForward: false
+      canGoForward: false,
+      conversationType,
+      typeOverride
     };
 
     this.setupViewListeners(newTab);
@@ -303,7 +377,7 @@ export class TabManager {
     if (saved && saved.tabs.length > 0) {
       console.log(`[TabManager] Restoring ${saved.tabs.length} tabs from saved state`);
       for (const t of saved.tabs) {
-        this.createTab(t.url, false, t.id, t.title);
+        this.createTab(t.url, false, t.id, t.title, t.typeOverride || 'auto', t.conversationType);
       }
       const initialTabId = (saved.activeTabId && this.tabs.some(t => t.id === saved.activeTabId))
         ? saved.activeTabId
@@ -324,7 +398,9 @@ export class TabManager {
         isLoading: t.isLoading,
         canGoBack: t.canGoBack,
         canGoForward: t.canGoForward,
-        favicon: t.favicon
+        favicon: t.favicon,
+        conversationType: t.conversationType,
+        typeOverride: t.typeOverride
       })),
       activeTabId: this.activeTabId
     };
@@ -408,6 +484,8 @@ export class TabManager {
       tab.url = wc.getURL();
       tab.canGoBack = wc.navigationHistory ? wc.navigationHistory.canGoBack() : wc.canGoBack();
       tab.canGoForward = wc.navigationHistory ? wc.navigationHistory.canGoForward() : wc.canGoForward();
+      // Re-evaluate conversation type on navigation if in automatic mode
+      tab.conversationType = this.resolveConversationType(tab.url, tab.typeOverride);
       this.notifyStateChanged();
       this.persistState();
     };
@@ -454,7 +532,9 @@ export class TabManager {
       tabs: this.tabs.map(t => ({
         id: t.id,
         url: t.url,
-        title: t.title
+        title: t.title,
+        typeOverride: t.typeOverride,
+        conversationType: t.conversationType
       })),
       activeTabId: this.activeTabId
     });

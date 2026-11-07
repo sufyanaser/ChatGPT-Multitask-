@@ -1,7 +1,7 @@
 import { BrowserWindow, Menu, MenuItemConstructorOptions, app, ipcMain, nativeTheme } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { IPC_CHANNELS, ThemeMode, ThemeStatePayload } from '../common/types';
+import { IPC_CHANNELS, ThemeMode, ThemeStatePayload, TabTypeOverride } from '../common/types';
 import { TabManager } from './tab-manager';
 import { SettingsStore } from './settings-store';
 
@@ -272,6 +272,16 @@ export class WindowManager {
     ipcMain.removeAllListeners(IPC_CHANNELS.TAB_NAVIGATE_FORWARD);
     ipcMain.on(IPC_CHANNELS.TAB_NAVIGATE_FORWARD, (_event, tabId?: string) => {
       this.tabManager?.navigateForward(tabId);
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.TAB_SET_TYPE);
+    ipcMain.on(IPC_CHANNELS.TAB_SET_TYPE, (_event, { tabId, typeOverride }: { tabId: string; typeOverride: TabTypeOverride }) => {
+      this.tabManager?.setTabTypeOverride(tabId, typeOverride);
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.TAB_SHOW_CONTEXT_MENU);
+    ipcMain.on(IPC_CHANNELS.TAB_SHOW_CONTEXT_MENU, (_event, tabId: string) => {
+      this.tabManager?.showTabContextMenu(tabId);
     });
   }
 

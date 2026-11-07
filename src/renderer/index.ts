@@ -2,6 +2,8 @@ type TabItem = import('../common/types').TabItem;
 type TabStatePayload = import('../common/types').TabStatePayload;
 type ThemeMode = import('../common/types').ThemeMode;
 type ThemeStatePayload = import('../common/types').ThemeStatePayload;
+type ConversationType = import('../common/types').ConversationType;
+type TabTypeOverride = import('../common/types').TabTypeOverride;
 type ElectronTabAPI = import('../preload').ElectronTabAPI;
 
 interface Window {
@@ -335,28 +337,50 @@ class TabBarController {
     tabEl.setAttribute('tabindex', '0');
     tabEl.title = tab.title || 'ChatGPT';
 
-    // Icon / Spinner
+    // Compact 14x14 SVG Indicator / Spinner
     const iconWrapper = document.createElement('div');
     iconWrapper.className = 'tab-icon-wrapper';
 
     if (tab.isLoading) {
       const spinner = document.createElement('div');
       spinner.className = 'tab-spinner';
+      spinner.title = 'Loading...';
       iconWrapper.appendChild(spinner);
     } else {
-      const icon = document.createElement('img');
-      icon.className = 'tab-icon';
-      icon.src = tab.favicon || 'https://chatgpt.com/favicon.ico';
-      icon.alt = 'ChatGPT';
-      icon.onerror = () => {
-        // Fallback OpenAI SVG spiral
-        iconWrapper.innerHTML = `
-          <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" opacity="0.85">
-            <path d="M14.017 6.13a3.52 3.52 0 0 0-.317-2.69 3.595 3.595 0 0 0-2.361-1.748 3.623 3.623 0 0 0-3.32.748 3.535 3.535 0 0 0-2.433-.284 3.6 3.6 0 0 0-2.247 1.896 3.636 3.636 0 0 0-.435 3.396 3.553 3.553 0 0 0-1.738 2.057 3.61 3.61 0 0 0 .285 3.364 3.633 3.633 0 0 0 2.65 1.57c.13.435.358.835.67 1.173a3.61 3.61 0 0 0 2.923 1.258 3.627 3.627 0 0 0 2.99-1.579 3.536 3.536 0 0 0 2.457.26 3.6 3.6 0 0 0 2.222-1.92 3.637 3.637 0 0 0 .416-3.398 3.55 3.55 0 0 0 1.736-2.055 3.611 3.611 0 0 0-.287-3.364 3.63 3.63 0 0 0-2.65-1.57z"/>
+      const convType: ConversationType = tab.conversationType || 'unknown';
+      let svgHtml = '';
+      let tooltip = 'Conversation type not identified';
+
+      if (convType === 'chat') {
+        tooltip = 'Chat conversation';
+        svgHtml = `
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="tab-type-icon tab-type-chat" aria-hidden="true">
+            <path d="M14 8a6 6 0 0 1-6 6c-1.1 0-2.1-.3-3-.8L2 14l.8-3A6 6 0 1 1 14 8z"/>
           </svg>
         `;
-      };
-      iconWrapper.appendChild(icon);
+      } else if (convType === 'work') {
+        tooltip = 'Work task';
+        svgHtml = `
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="tab-type-icon tab-type-work" aria-hidden="true">
+            <rect x="2" y="5" width="12" height="9" rx="1.5"/>
+            <path d="M5.5 5V3.5a1.5 1.5 0 0 1 1.5-1.5h2a1.5 1.5 0 0 1 1.5 1.5V5"/>
+            <path d="M2 9h12"/>
+          </svg>
+        `;
+      } else {
+        tooltip = 'Conversation type not identified';
+        svgHtml = `
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="tab-type-icon tab-type-unknown" aria-hidden="true">
+            <circle cx="8" cy="8" r="6"/>
+            <path d="M6.5 6.5a1.8 1.8 0 0 1 3.2 1c0 .8-.8 1.2-1.2 1.5-.3.2-.5.5-.5 1"/>
+            <circle cx="8" cy="12.2" r="0.6" fill="currentColor"/>
+          </svg>
+        `;
+      }
+
+      iconWrapper.innerHTML = svgHtml.trim();
+      iconWrapper.title = tooltip;
+      iconWrapper.setAttribute('aria-label', tooltip);
     }
 
     // Title with RTL & Arabic/English auto-direction
@@ -385,6 +409,13 @@ class TabBarController {
 
     tabEl.addEventListener('click', () => {
       window.api?.selectTab(tab.id);
+    });
+
+    // Right-click context menu (Set tab type -> Chat / Work / Automatic)
+    tabEl.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.api?.showTabContextMenu?.(tab.id);
     });
 
     // Keyboard activation

@@ -36,7 +36,9 @@ export class TabStateStore {
         tabs: state.tabs.map(t => ({
           id: t.id,
           url: t.url,
-          title: t.title
+          title: t.title,
+          typeOverride: t.typeOverride,
+          conversationType: t.conversationType
         })),
         activeTabId: state.activeTabId
       };
