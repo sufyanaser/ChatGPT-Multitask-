@@ -6,45 +6,56 @@
   <title>ChatGPT Multitask</title>
   <link rel="stylesheet" href="index.css">
 </head>
-<body class="dark">
+<body>
   <div id="tab-bar-container" class="tab-bar-container">
     <!-- Window drag handle / macOS traffic light spacer -->
     <div id="traffic-light-spacer" class="traffic-light-spacer"></div>
 
     <!-- Navigation buttons (Back, Forward, Reload) -->
     <div class="nav-controls">
-      <button id="btn-back" class="nav-btn" title="Back" disabled>
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-          <path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
+      <button id="btn-back" class="nav-btn" title="Back (Cmd+[ / Alt+Left)" disabled>
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="10 3 5 8 10 13"></polyline>
         </svg>
       </button>
-      <button id="btn-forward" class="nav-btn" title="Forward" disabled>
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-          <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+      <button id="btn-forward" class="nav-btn" title="Forward (Cmd+] / Alt+Right)" disabled>
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 3 11 8 6 13"></polyline>
         </svg>
       </button>
-      <button id="btn-reload" class="nav-btn" title="Reload Tab (Cmd+R)">
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-          <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
-          <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+      <button id="btn-reload" class="nav-btn" title="Reload Tab (Cmd+R / Ctrl+R)">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9L14 6.5"/>
+          <polyline points="14 2.5 14 6.5 10 6.5"/>
         </svg>
       </button>
     </div>
 
-    <!-- Tabs List -->
+    <!-- Dynamic Tabs List -->
     <div id="tabs-list" class="tabs-list">
-      <!-- Dynamic Tabs inserted here -->
+      <!-- Tabs rendered via TabBarController -->
     </div>
 
     <!-- New Tab Button -->
     <button id="btn-new-tab" class="new-tab-btn" title="New Tab (Cmd+T / Ctrl+T)">
-      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-        <path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2z"/>
+      <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="8" y1="3" x2="8" y2="13"></line>
+        <line x1="3" y1="8" x2="13" y2="8"></line>
       </svg>
     </button>
 
     <!-- Empty draggable area to fill the rest of the tab bar -->
     <div class="drag-spacer"></div>
+
+    <!-- Theme Toggle in Trailing Region -->
+    <div class="trailing-controls">
+      <button id="btn-theme" class="nav-btn theme-btn" title="Appearance: Follow System / Dark / Light">
+        <svg id="icon-theme" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8" cy="8" r="4"></circle>
+          <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/>
+        </svg>
+      </button>
+    </div>
 
     <!-- Windows titlebar overlay space reservation (138px for minimize/maximize/close) -->
     <div id="windows-controls-spacer" class="windows-controls-spacer"></div>

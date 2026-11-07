@@ -8,7 +8,6 @@ export class AppUpdater {
       return;
     }
 
-    // Never force download without integrity checks and user notification
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
 
@@ -28,11 +27,40 @@ export class AppUpdater {
       console.warn('[AppUpdater] Update check notice:', err?.message || err);
     });
 
-    // Perform check after application has settled
+    autoUpdater.on('update-downloaded', (info) => {
+      console.log(`[AppUpdater] Update downloaded: version ${info.version}`);
+    });
+
     setTimeout(() => {
       autoUpdater.checkForUpdates().catch(err => {
         console.warn('[AppUpdater] Update verification deferred:', err?.message || err);
       });
     }, 6000);
+  }
+}
+
+export class UpdateService {
+  private static instance: UpdateService;
+  private updater?: AppUpdater;
+
+  private constructor() {
+    this.updater = new AppUpdater();
+  }
+
+  public static getInstance(): UpdateService {
+    if (!UpdateService.instance) {
+      UpdateService.instance = new UpdateService();
+    }
+    return UpdateService.instance;
+  }
+
+  public checkForUpdates(): void {
+    if (!app.isPackaged) {
+      console.log('[UpdateService] Skipping update check in development mode.');
+      return;
+    }
+    autoUpdater.checkForUpdates().catch(err => {
+      console.warn('[UpdateService] Update check failed:', err);
+    });
   }
 }

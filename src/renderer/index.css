@@ -19,6 +19,26 @@
   --drag-border: #10a37f;
 }
 
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-bar: #f9f9f9;
+    --border-bar: rgba(0, 0, 0, 0.08);
+    --bg-tab: transparent;
+    --bg-tab-hover: rgba(0, 0, 0, 0.04);
+    --bg-tab-active: #ffffff;
+    --tab-border: transparent;
+    --tab-active-border: rgba(0, 0, 0, 0.08);
+    --tab-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    --text-primary: #0d0d0d;
+    --text-secondary: #5d5d5d;
+    --text-muted: #9b9b9b;
+    --btn-hover-bg: rgba(0, 0, 0, 0.06);
+    --btn-hover-color: #0d0d0d;
+    --accent-color: #10a37f;
+    --drag-border: #10a37f;
+  }
+}
+
 body.theme-light {
   /* Light Mode (ChatGPT Clean Modern Palette) */
   --bg-bar: #f9f9f9;
@@ -61,15 +81,16 @@ body.theme-dark {
   margin: 0;
   padding: 0;
   user-select: none;
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background-color: var(--bg-bar);
   color: var(--text-primary);
   overflow: hidden;
   height: 44px;
-  width: 100vw;
+  user-select: none;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
@@ -83,38 +104,51 @@ body {
   padding: 0 6px;
   position: relative;
   z-index: 100;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+@media (-webkit-min-device-pixel-ratio: 2) {
+  .tab-bar-container {
+    border-bottom-width: 0.5px;
+  }
 }
 
 /* Platform Spacers */
 .traffic-light-spacer {
   display: none;
-  width: 0;
-  flex-shrink: 0;
 }
 
-body.platform-darwin .traffic-light-spacer {
+.platform-darwin .traffic-light-spacer {
   display: block;
   width: 78px;
+  height: 100%;
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+  transition: width 0.2s ease;
+}
+
+.platform-darwin.fullscreen-active .traffic-light-spacer {
+  width: 6px;
 }
 
 .windows-controls-spacer {
   display: none;
-  width: 0;
+}
+
+.platform-win32 .windows-controls-spacer {
+  display: block;
+  width: 138px;
+  height: 100%;
   flex-shrink: 0;
   -webkit-app-region: drag;
 }
 
-body.platform-win32 .windows-controls-spacer {
-  display: block;
-  width: 138px;
-}
-
-/* Nav Controls */
+/* Navigation Controls (Back, Forward, Reload) */
 .nav-controls {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 0 4px;
+  margin-right: 6px;
   -webkit-app-region: no-drag;
 }
 
@@ -137,24 +171,27 @@ body.platform-win32 .windows-controls-spacer {
   color: var(--btn-hover-color);
 }
 
+.nav-btn:active:not(:disabled) {
+  background-color: rgba(128, 128, 128, 0.2);
+}
+
 .nav-btn:disabled {
   opacity: 0.3;
   cursor: default;
 }
 
-/* Tabs List */
+/* Dynamic Tabs Strip */
 .tabs-list {
   display: flex;
   align-items: center;
-  height: 100%;
-  flex: 0 1 auto;
-  max-width: calc(100vw - 260px);
+  gap: 3px;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: none;
+  max-width: calc(100% - 160px);
+  height: 100%;
+  padding: 0 2px;
   -webkit-app-region: no-drag;
-  gap: 5px;
-  padding: 0 4px;
+  scrollbar-width: none;
 }
 
 .tabs-list::-webkit-scrollbar {
@@ -166,21 +203,21 @@ body.platform-win32 .windows-controls-spacer {
   display: flex;
   align-items: center;
   height: 32px;
-  min-width: 120px;
+  min-width: 140px;
   max-width: 220px;
   padding: 0 8px 0 10px;
   background-color: var(--bg-tab);
   border: 1px solid var(--tab-border);
-  border-radius: 8px;
+  border-radius: 7px;
   font-size: 12.5px;
   color: var(--text-secondary);
   cursor: pointer;
   position: relative;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
   -webkit-app-region: no-drag;
 }
 
-.tab-item:hover {
+.tab-item:hover:not(.active) {
   background-color: var(--bg-tab-hover);
   color: var(--text-primary);
 }
@@ -198,7 +235,7 @@ body.platform-win32 .windows-controls-spacer {
 }
 
 .tab-icon-wrapper {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 16px;
@@ -207,51 +244,56 @@ body.platform-win32 .windows-controls-spacer {
   flex-shrink: 0;
 }
 
-.tab-icon {
+.tab-favicon {
   width: 14px;
   height: 14px;
-  border-radius: 3px;
-  object-fit: contain;
+  border-radius: 2px;
 }
 
 .tab-spinner {
   width: 12px;
   height: 12px;
-  border: 2px solid rgba(128, 128, 128, 0.4);
+  border: 2px solid var(--text-secondary);
   border-top-color: var(--accent-color);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 .tab-title {
   flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   padding-right: 4px;
   unicode-bidi: plaintext;
   text-align: start;
+  line-height: 1.2;
 }
 
 .tab-close-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 18px;
   height: 18px;
-  border-radius: 4px;
+  border-radius: 50%;
   border: none;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
   flex-shrink: 0;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  opacity: 0.6;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+.tab-item:hover .tab-close-btn,
+.tab-item.active .tab-close-btn {
+  opacity: 1;
 }
 
 .tab-close-btn:hover {
@@ -266,7 +308,7 @@ body.platform-win32 .windows-controls-spacer {
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 7px;
+  border-radius: 6px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
@@ -288,6 +330,15 @@ body.platform-win32 .windows-controls-spacer {
   height: 100%;
   min-width: 24px;
   -webkit-app-region: drag;
+}
+
+/* Trailing Controls */
+.trailing-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 4px;
+  -webkit-app-region: no-drag;
 }
 
 /* Accessibility: Reduced Motion */

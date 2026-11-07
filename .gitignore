@@ -5,7 +5,7 @@ node_modules/
 dist/
 release/
 out/
-build/
+build/icon.iconset/
 *.dmg
 *.zip
 *.exe

@@ -25,9 +25,19 @@ export interface TabStatePayload {
   activeTabId: string | null;
 }
 
+export type ThemeMode = 'system' | 'dark' | 'light';
+
+export interface ThemeStatePayload {
+  themeMode: ThemeMode;
+  isDark: boolean;
+}
+
 export const IPC_CHANNELS = {
   // Main -> Renderer
   TABS_STATE_UPDATE: 'tabs:state-update',
+  THEME_UPDATE: 'theme:update',
+  THEME_CHANGED: 'theme:changed',
+  FULLSCREEN_UPDATE: 'window:fullscreen-update',
   
   // Renderer -> Main
   TAB_CREATE: 'tabs:create',
@@ -41,5 +51,6 @@ export const IPC_CHANNELS = {
 
   // Theme Sync
   THEME_GET: 'theme:get',
-  THEME_CHANGED: 'theme:changed'
+  GET_THEME: 'theme:get',
+  SET_THEME: 'theme:set'
 } as const;

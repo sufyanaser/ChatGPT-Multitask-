@@ -12,6 +12,12 @@ assert.strictEqual(typeof IPC_CHANNELS.TAB_CLOSE, 'string');
 assert.strictEqual(typeof IPC_CHANNELS.TAB_SELECT, 'string');
 assert.strictEqual(typeof IPC_CHANNELS.TABS_STATE_UPDATE, 'string');
 assert.strictEqual(typeof IPC_CHANNELS.TAB_REORDER, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.THEME_UPDATE, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.THEME_CHANGED, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.FULLSCREEN_UPDATE, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.GET_THEME, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.SET_THEME, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.THEME_GET, 'string');
 console.log('✔ IPC Channels are correctly defined.\n');
 
 // Test 2: URL & Origin validation logic
@@ -116,7 +122,7 @@ assert.strictEqual(typeof IPC_CHANNELS.THEME_GET, 'string');
 assert.strictEqual(typeof IPC_CHANNELS.THEME_CHANGED, 'string');
 console.log('✔ Theme contracts verified.\n');
 
-// Test 6: Icon assets verification
+// Test 6: Platform icon assets verification
 console.log('Test 6: Verifying platform icon assets...');
 const assetsDir = path.join(__dirname, '../assets');
 assert(fs.existsSync(path.join(assetsDir, 'icon.ico')), 'Windows icon.ico must exist');

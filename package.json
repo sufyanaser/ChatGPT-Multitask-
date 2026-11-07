@@ -10,15 +10,18 @@
     "url": "https://github.com/sufyanaser/ChatGPT-Multitask-.git"
   },
   "scripts": {
-    "clean": "rimraf dist",
+    "clean": "rimraf dist release",
     "build:tsc": "tsc",
     "build": "npm run clean && tsc && node scripts/copy-assets.js",
     "typecheck": "tsc --noEmit",
     "lint": "npm run typecheck",
-    "test": "node scripts/run-tests.js",
+    "test": "npm run build && node scripts/run-tests.js",
     "start": "npm run build && electron .",
+    "generate:icons": "node scripts/generate-icons.js",
     "pack:win": "npm run build && electron-builder --win --x64",
     "pack:mac": "npm run build && electron-builder --mac --arm64",
+    "dist:win": "npm run build && electron-builder --win --x64",
+    "dist:mac": "npm run build && electron-builder --mac --arm64",
     "dist": "npm run build && electron-builder"
   },
   "dependencies": {
@@ -34,12 +37,14 @@
   "build": {
     "appId": "com.chatgpt.multitask",
     "productName": "ChatGPT Multitask",
+    "copyright": "Copyright © 2026 ChatGPT Multitask Contributors",
     "directories": {
       "output": "release"
     },
     "files": [
       "dist/**/*",
       "assets/**/*",
+      "build/icon.png",
       "package.json"
     ],
     "win": {
@@ -65,6 +70,8 @@
       "deleteAppDataOnUninstall": false
     },
     "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -79,11 +86,17 @@
           ]
         }
       ],
-      "category": "public.app-category.productivity",
-      "icon": "assets/icon.icns",
-      "artifactName": "ChatGPT-Multitask-macOS-arm64.${ext}",
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false
+      "artifactName": "ChatGPT-Multitask-macOS-${arch}.${ext}",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "darkModeSupport": true,
+      "identity": null
+    },
+    "dmg": {
+      "artifactName": "ChatGPT-Multitask-macOS-${arch}.${ext}",
+      "sign": false
     },
     "publish": {
       "provider": "github",
