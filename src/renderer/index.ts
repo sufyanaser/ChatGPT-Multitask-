@@ -1,10 +1,9 @@
-import { ElectronTabAPI } from '../preload';
-import { TabItem, TabStatePayload } from '../common/types';
+type TabItem = import('../common/types').TabItem;
+type TabStatePayload = import('../common/types').TabStatePayload;
+type ElectronTabAPI = import('../preload').ElectronTabAPI;
 
-declare global {
-  interface Window {
-    api: ElectronTabAPI;
-  }
+interface Window {
+  api: ElectronTabAPI;
 }
 
 class TabBarController {

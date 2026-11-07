@@ -78,4 +78,36 @@ assert.strictEqual(loaded.tabs[1].title, 'Architecture Review');
 fs.unlinkSync(tempStorePath);
 console.log('✔ Tab state serialization and recovery validated.\n');
 
+// Test 4: Regression protection: Renderer bundle browser-compatibility (no CommonJS exports)
+console.log('Test 4: Verifying renderer script has no CommonJS exports...');
+const rendererJsPath = path.join(__dirname, '../dist/renderer/index.js');
+assert(fs.existsSync(rendererJsPath), 'dist/renderer/index.js must exist after build');
+const rendererJs = fs.readFileSync(rendererJsPath, 'utf-8');
+
+// 1. Static check: Ensure no reference to exports
+assert.strictEqual(
+  /\bexports\b/.test(rendererJs),
+  false,
+  'dist/renderer/index.js must not contain CommonJS "exports" references'
+);
+
+// 2. Runtime execution in clean sandboxed context without exports
+const vm = require('vm');
+const mockContext = vm.createContext({
+  window: {
+    addEventListener: () => {}
+  },
+  document: {
+    getElementById: () => ({
+      addEventListener: () => {}
+    })
+  },
+  console
+});
+
+assert.doesNotThrow(() => {
+  vm.runInContext(rendererJs, mockContext);
+}, /exports is not defined/, 'Renderer script must not fail with "ReferenceError: exports is not defined" in browser context');
+console.log('✔ Renderer script browser-compatibility verified (no CommonJS exports).\n');
+
 console.log('All Unit Tests Passed Successfully!\n');
