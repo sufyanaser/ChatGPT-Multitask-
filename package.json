@@ -16,7 +16,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "npm run typecheck",
     "test": "node scripts/run-tests.js",
-    "start": "npm run build && electron ."
+    "start": "npm run build && electron .",
+    "pack:win": "npm run build && electron-builder --win --x64",
+    "pack:mac": "npm run build && electron-builder --mac --arm64",
+    "dist": "npm run build && electron-builder"
   },
   "dependencies": {
     "electron-updater": "^6.8.11"
@@ -27,5 +30,65 @@
     "electron-builder": "^26.18.0",
     "rimraf": "^6.0.1",
     "typescript": "^5.8.2"
+  },
+  "build": {
+    "appId": "com.chatgpt.multitask",
+    "productName": "ChatGPT Multitask",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "ChatGPT-Multitask-Windows-x64-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "ChatGPT Multitask",
+      "uninstallDisplayName": "ChatGPT Multitask",
+      "deleteAppDataOnUninstall": false
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.icns",
+      "artifactName": "ChatGPT-Multitask-macOS-arm64.${ext}",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "sufyanaser",
+      "repo": "ChatGPT-Multitask-"
+    }
   }
 }

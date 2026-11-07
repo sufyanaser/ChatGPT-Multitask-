@@ -1,0 +1,95 @@
+name: Release - Multi-Platform Distribution
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release Tag (e.g. v0.1.0)'
+        required: true
+        default: 'v0.1.0'
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows:
+    name: Build & Release Windows x64
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run verification
+        run: |
+          npm run lint
+          npm run typecheck
+          npm test
+
+      - name: Package Windows
+        run: npm run pack:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute SHA-256
+        shell: pwsh
+        run: |
+          $installer = Get-Item "release\ChatGPT-Multitask-Windows-x64-Setup.exe"
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash
+          "$hash  $($installer.Name)" | Out-File -Encoding utf8 "release\SHA256SUMS-win.txt"
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: release/*.*
+
+  release-macos:
+    name: Build & Release macOS arm64
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run verification
+        run: |
+          npm run lint
+          npm run typecheck
+          npm test
+
+      - name: Package macOS
+        run: npm run pack:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute SHA-256
+        shell: bash
+        run: |
+          cd release
+          shasum -a 256 ChatGPT-Multitask-macOS-arm64.* > SHA256SUMS-mac.txt
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: release/*.*

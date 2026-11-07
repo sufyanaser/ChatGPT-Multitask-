@@ -44,8 +44,13 @@ export class TabManager {
     return this.activeTabId;
   }
 
-  public createTab(url: string = DEFAULT_URL, selectAfterCreation: boolean = true): ManagedTab {
-    const tabId = randomUUID();
+  public createTab(
+    url: string = DEFAULT_URL,
+    selectAfterCreation: boolean = true,
+    customId?: string,
+    initialTitle?: string
+  ): ManagedTab {
+    const tabId = customId || randomUUID();
     const session = this.sessionManager.getSession();
 
     const view = new WebContentsView({
@@ -63,7 +68,7 @@ export class TabManager {
     const newTab: ManagedTab = {
       id: tabId,
       view,
-      title: 'ChatGPT',
+      title: initialTitle || 'ChatGPT',
       url,
       isLoading: true,
       canGoBack: false,
@@ -248,7 +253,7 @@ export class TabManager {
     if (saved && saved.tabs.length > 0) {
       console.log(`[TabManager] Restoring ${saved.tabs.length} tabs from saved state`);
       for (const t of saved.tabs) {
-        this.createTab(t.url, false);
+        this.createTab(t.url, false, t.id, t.title);
       }
       const initialTabId = (saved.activeTabId && this.tabs.some(t => t.id === saved.activeTabId))
         ? saved.activeTabId

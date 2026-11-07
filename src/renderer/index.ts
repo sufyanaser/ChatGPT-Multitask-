@@ -22,14 +22,50 @@ class TabBarController {
     this.btnReload = document.getElementById('btn-reload') as HTMLButtonElement;
 
     this.initPlatformStyle();
+    this.initTheme();
     this.bindEvents();
     this.listenToStateUpdates();
   }
 
   private initPlatformStyle(): void {
-    if (window.api && window.api.platform === 'darwin') {
+    const platform = window.api?.platform || 'win32';
+    if (platform === 'darwin') {
       document.body.classList.add('platform-darwin');
+    } else {
+      document.body.classList.add('platform-win32');
     }
+  }
+
+  private async initTheme(): Promise<void> {
+    if (window.api?.getTheme) {
+      try {
+        const theme = await window.api.getTheme();
+        this.applyTheme(theme);
+      } catch {
+        this.fallbackSystemTheme();
+      }
+    } else {
+      this.fallbackSystemTheme();
+    }
+
+    window.api?.onThemeUpdate?.((theme: 'dark' | 'light') => {
+      this.applyTheme(theme);
+    });
+
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    mql.addEventListener('change', (e) => {
+      this.applyTheme(e.matches ? 'dark' : 'light');
+    });
+  }
+
+  private applyTheme(theme: 'dark' | 'light'): void {
+    document.body.classList.remove('theme-dark', 'theme-light');
+    document.body.classList.add(`theme-${theme}`);
+  }
+
+  private fallbackSystemTheme(): void {
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    this.applyTheme(isDark ? 'dark' : 'light');
   }
 
   private bindEvents(): void {
@@ -92,6 +128,10 @@ class TabBarController {
     tabEl.draggable = true;
     tabEl.dataset.tabId = tab.id;
     tabEl.dataset.index = index.toString();
+    tabEl.setAttribute('role', 'tab');
+    tabEl.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    tabEl.setAttribute('tabindex', '0');
+    tabEl.title = tab.title || 'ChatGPT';
 
     // Icon / Spinner
     const iconWrapper = document.createElement('div');
@@ -121,12 +161,12 @@ class TabBarController {
     const titleEl = document.createElement('span');
     titleEl.className = 'tab-title';
     titleEl.textContent = tab.title || 'ChatGPT';
-    titleEl.title = tab.title || 'ChatGPT';
 
     // Close Button
     const closeBtn = document.createElement('button');
     closeBtn.className = 'tab-close-btn';
     closeBtn.title = 'Close Tab';
+    closeBtn.setAttribute('aria-label', `Close ${tab.title || 'tab'}`);
     closeBtn.innerHTML = `
       <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor">
         <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854z"/>
@@ -140,6 +180,14 @@ class TabBarController {
 
     tabEl.addEventListener('click', () => {
       window.api?.selectTab(tab.id);
+    });
+
+    // Keyboard activation
+    tabEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        window.api?.selectTab(tab.id);
+      }
     });
 
     // Middle click to close

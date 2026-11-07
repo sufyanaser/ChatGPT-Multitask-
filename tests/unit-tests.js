@@ -110,4 +110,20 @@ assert.doesNotThrow(() => {
 }, /exports is not defined/, 'Renderer script must not fail with "ReferenceError: exports is not defined" in browser context');
 console.log('✔ Renderer script browser-compatibility verified (no CommonJS exports).\n');
 
+// Test 5: Theme switching channels and IPC contracts
+console.log('Test 5: Verifying Theme switching contracts...');
+assert.strictEqual(typeof IPC_CHANNELS.THEME_GET, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.THEME_CHANGED, 'string');
+console.log('✔ Theme contracts verified.\n');
+
+// Test 6: Icon assets verification
+console.log('Test 6: Verifying platform icon assets...');
+const assetsDir = path.join(__dirname, '../assets');
+assert(fs.existsSync(path.join(assetsDir, 'icon.ico')), 'Windows icon.ico must exist');
+assert(fs.existsSync(path.join(assetsDir, 'icon.icns')), 'macOS icon.icns must exist');
+assert(fs.existsSync(path.join(assetsDir, 'icon.png')), 'Master icon.png must exist');
+assert(fs.statSync(path.join(assetsDir, 'icon.ico')).size > 10000, 'icon.ico must be a valid multi-res icon');
+assert(fs.statSync(path.join(assetsDir, 'icon.icns')).size > 100000, 'icon.icns must be a valid multi-res icon');
+console.log('✔ Icon assets verified.\n');
+
 console.log('All Unit Tests Passed Successfully!\n');

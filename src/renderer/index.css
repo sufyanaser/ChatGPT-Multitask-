@@ -1,3 +1,61 @@
+/* ChatGPT Multitask — Modern Cross-Platform Tab Bar Design */
+
+:root {
+  /* Default Dark Mode (ChatGPT Modern Palette) */
+  --bg-bar: #212121;
+  --border-bar: rgba(255, 255, 255, 0.08);
+  --bg-tab: transparent;
+  --bg-tab-hover: rgba(255, 255, 255, 0.06);
+  --bg-tab-active: #2f2f2f;
+  --tab-border: transparent;
+  --tab-active-border: rgba(255, 255, 255, 0.12);
+  --tab-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --text-primary: #ececec;
+  --text-secondary: #b4b4b4;
+  --text-muted: #737373;
+  --btn-hover-bg: rgba(255, 255, 255, 0.08);
+  --btn-hover-color: #ffffff;
+  --accent-color: #10a37f;
+  --drag-border: #10a37f;
+}
+
+body.theme-light {
+  /* Light Mode (ChatGPT Clean Modern Palette) */
+  --bg-bar: #f9f9f9;
+  --border-bar: rgba(0, 0, 0, 0.08);
+  --bg-tab: transparent;
+  --bg-tab-hover: rgba(0, 0, 0, 0.04);
+  --bg-tab-active: #ffffff;
+  --tab-border: transparent;
+  --tab-active-border: rgba(0, 0, 0, 0.08);
+  --tab-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --text-primary: #0d0d0d;
+  --text-secondary: #5d5d5d;
+  --text-muted: #9b9b9b;
+  --btn-hover-bg: rgba(0, 0, 0, 0.06);
+  --btn-hover-color: #0d0d0d;
+  --accent-color: #10a37f;
+  --drag-border: #10a37f;
+}
+
+body.theme-dark {
+  --bg-bar: #212121;
+  --border-bar: rgba(255, 255, 255, 0.08);
+  --bg-tab: transparent;
+  --bg-tab-hover: rgba(255, 255, 255, 0.06);
+  --bg-tab-active: #2f2f2f;
+  --tab-border: transparent;
+  --tab-active-border: rgba(255, 255, 255, 0.12);
+  --tab-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --text-primary: #ececec;
+  --text-secondary: #b4b4b4;
+  --text-muted: #737373;
+  --btn-hover-bg: rgba(255, 255, 255, 0.08);
+  --btn-hover-color: #ffffff;
+  --accent-color: #10a37f;
+  --drag-border: #10a37f;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -6,39 +64,57 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background-color: #171717;
-  color: #ececec;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg-bar);
+  color: var(--text-primary);
   overflow: hidden;
   height: 44px;
   width: 100vw;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .tab-bar-container {
   display: flex;
   align-items: center;
   height: 44px;
-  background-color: #171717;
-  border-bottom: 1px solid #2f2f2f;
+  background-color: var(--bg-bar);
+  border-bottom: 1px solid var(--border-bar);
   -webkit-app-region: drag;
-  padding-right: 8px;
+  padding: 0 6px;
+  position: relative;
+  z-index: 100;
 }
 
+/* Platform Spacers */
 .traffic-light-spacer {
+  display: none;
   width: 0;
   flex-shrink: 0;
-  transition: width 0.15s ease;
 }
 
 body.platform-darwin .traffic-light-spacer {
+  display: block;
   width: 78px;
 }
 
+.windows-controls-spacer {
+  display: none;
+  width: 0;
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+}
+
+body.platform-win32 .windows-controls-spacer {
+  display: block;
+  width: 138px;
+}
+
+/* Nav Controls */
 .nav-controls {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 0 6px;
+  padding: 0 4px;
   -webkit-app-region: no-drag;
 }
 
@@ -51,31 +127,33 @@ body.platform-darwin .traffic-light-spacer {
   border-radius: 6px;
   border: none;
   background: transparent;
-  color: #8e8e8e;
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .nav-btn:hover:not(:disabled) {
-  background-color: #262626;
-  color: #ffffff;
+  background-color: var(--btn-hover-bg);
+  color: var(--btn-hover-color);
 }
 
 .nav-btn:disabled {
-  opacity: 0.35;
+  opacity: 0.3;
   cursor: default;
 }
 
+/* Tabs List */
 .tabs-list {
   display: flex;
   align-items: center;
   height: 100%;
-  max-width: calc(100vw - 180px);
+  flex: 0 1 auto;
+  max-width: calc(100vw - 260px);
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
   -webkit-app-region: no-drag;
-  gap: 4px;
+  gap: 5px;
   padding: 0 4px;
 }
 
@@ -83,37 +161,40 @@ body.platform-darwin .traffic-light-spacer {
   display: none;
 }
 
+/* Tab Item */
 .tab-item {
   display: flex;
   align-items: center;
   height: 32px;
   min-width: 120px;
-  max-width: 210px;
+  max-width: 220px;
   padding: 0 8px 0 10px;
-  background-color: #212121;
-  border-radius: 7px;
+  background-color: var(--bg-tab);
+  border: 1px solid var(--tab-border);
+  border-radius: 8px;
   font-size: 12.5px;
-  color: #a3a3a3;
+  color: var(--text-secondary);
   cursor: pointer;
   position: relative;
-  transition: background-color 0.15s, color 0.15s;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   -webkit-app-region: no-drag;
 }
 
 .tab-item:hover {
-  background-color: #2a2a2a;
-  color: #e5e5e5;
+  background-color: var(--bg-tab-hover);
+  color: var(--text-primary);
 }
 
 .tab-item.active {
-  background-color: #303030;
-  color: #ffffff;
+  background-color: var(--bg-tab-active);
+  color: var(--text-primary);
   font-weight: 500;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  border-color: var(--tab-active-border);
+  box-shadow: var(--tab-shadow);
 }
 
 .tab-item.drag-over {
-  border-left: 2px solid #10a37f;
+  border-left: 2px solid var(--drag-border);
 }
 
 .tab-icon-wrapper {
@@ -129,14 +210,15 @@ body.platform-darwin .traffic-light-spacer {
 .tab-icon {
   width: 14px;
   height: 14px;
-  border-radius: 2px;
+  border-radius: 3px;
+  object-fit: contain;
 }
 
 .tab-spinner {
   width: 12px;
   height: 12px;
-  border: 2px solid #525252;
-  border-top-color: #10a37f;
+  border: 2px solid rgba(128, 128, 128, 0.4);
+  border-top-color: var(--accent-color);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -153,6 +235,8 @@ body.platform-darwin .traffic-light-spacer {
   overflow: hidden;
   text-overflow: ellipsis;
   padding-right: 4px;
+  unicode-bidi: plaintext;
+  text-align: start;
 }
 
 .tab-close-btn {
@@ -164,41 +248,53 @@ body.platform-darwin .traffic-light-spacer {
   border-radius: 4px;
   border: none;
   background: transparent;
-  color: #737373;
+  color: var(--text-muted);
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .tab-close-btn:hover {
-  background-color: #404040;
-  color: #ffffff;
+  background-color: var(--btn-hover-bg);
+  color: var(--btn-hover-color);
 }
 
+/* New Tab Button */
 .new-tab-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: 7px;
   border: none;
   background: transparent;
-  color: #8e8e8e;
+  color: var(--text-secondary);
   cursor: pointer;
-  margin-left: 4px;
-  transition: background 0.15s, color 0.15s;
+  margin-left: 3px;
+  transition: background-color 0.15s ease, color 0.15s ease;
   -webkit-app-region: no-drag;
   flex-shrink: 0;
 }
 
 .new-tab-btn:hover {
-  background-color: #262626;
-  color: #ffffff;
+  background-color: var(--btn-hover-bg);
+  color: var(--btn-hover-color);
 }
 
+/* Draggable Region */
 .drag-spacer {
   flex: 1;
   height: 100%;
+  min-width: 24px;
   -webkit-app-region: drag;
+}
+
+/* Accessibility: Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

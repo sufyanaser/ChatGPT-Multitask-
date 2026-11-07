@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import { WindowManager } from './window-manager';
 import { SessionManager } from './session-manager';
+import { AppUpdater } from './auto-updater';
 
 // Ensure single instance of the application
 const gotTheLock = app.requestSingleInstanceLock();
@@ -25,6 +26,7 @@ if (!gotTheLock) {
 
     windowManager = new WindowManager();
     windowManager.createWindow();
+    new AppUpdater();
 
     app.on('activate', () => {
       // On macOS, recreate window when dock icon is clicked and no windows exist

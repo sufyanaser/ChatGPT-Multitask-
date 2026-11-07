@@ -37,5 +37,9 @@ export const IPC_CHANNELS = {
   TAB_REORDER: 'tabs:reorder',
   TAB_NAVIGATE_BACK: 'tabs:go-back',
   TAB_NAVIGATE_FORWARD: 'tabs:go-forward',
-  GET_INITIAL_STATE: 'tabs:get-initial-state'
+  GET_INITIAL_STATE: 'tabs:get-initial-state',
+
+  // Theme Sync
+  THEME_GET: 'theme:get',
+  THEME_CHANGED: 'theme:changed'
 } as const;

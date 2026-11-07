@@ -10,7 +10,9 @@ const IPC = {
   TAB_REORDER: 'tabs:reorder',
   TAB_NAVIGATE_BACK: 'tabs:go-back',
   TAB_NAVIGATE_FORWARD: 'tabs:go-forward',
-  GET_INITIAL_STATE: 'tabs:get-initial-state'
+  GET_INITIAL_STATE: 'tabs:get-initial-state',
+  THEME_GET: 'theme:get',
+  THEME_CHANGED: 'theme:changed'
 } as const;
 
 export interface ElectronTabAPI {
@@ -24,6 +26,8 @@ export interface ElectronTabAPI {
   navigateForward: (tabId?: string) => void;
   getInitialState: () => Promise<TabStatePayload>;
   onStateUpdate: (callback: (payload: TabStatePayload) => void) => () => void;
+  getTheme: () => Promise<'dark' | 'light'>;
+  onThemeUpdate: (callback: (theme: 'dark' | 'light') => void) => () => void;
 }
 
 const api: ElectronTabAPI = {
@@ -69,6 +73,21 @@ const api: ElectronTabAPI = {
 
     return () => {
       ipcRenderer.removeListener(IPC.TABS_STATE_UPDATE, listener);
+    };
+  },
+
+  getTheme: async (): Promise<'dark' | 'light'> => {
+    return ipcRenderer.invoke(IPC.THEME_GET);
+  },
+
+  onThemeUpdate: (callback: (theme: 'dark' | 'light') => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, theme: 'dark' | 'light') => {
+      callback(theme);
+    };
+    ipcRenderer.on(IPC.THEME_CHANGED, listener);
+
+    return () => {
+      ipcRenderer.removeListener(IPC.THEME_CHANGED, listener);
     };
   }
 };

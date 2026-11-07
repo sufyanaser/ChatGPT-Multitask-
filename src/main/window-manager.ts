@@ -1,4 +1,4 @@
-import { BrowserWindow, Menu, MenuItemConstructorOptions, app, ipcMain } from 'electron';
+import { BrowserWindow, Menu, MenuItemConstructorOptions, app, ipcMain, nativeTheme } from 'electron';
 import * as path from 'path';
 import { IPC_CHANNELS } from '../common/types';
 import { TabManager } from './tab-manager';
@@ -9,6 +9,10 @@ export class WindowManager {
 
   public createWindow(): BrowserWindow {
     const isMac = process.platform === 'darwin';
+    const isDark = nativeTheme.shouldUseDarkColors;
+    const iconPath = process.platform === 'win32'
+      ? path.join(__dirname, '../../assets/icon.ico')
+      : path.join(__dirname, '../../assets/icon.png');
 
     this.window = new BrowserWindow({
       width: 1280,
@@ -16,8 +20,16 @@ export class WindowManager {
       minWidth: 800,
       minHeight: 600,
       title: 'ChatGPT Multitask',
-      backgroundColor: '#171717',
-      titleBarStyle: isMac ? 'hiddenInset' : 'default',
+      backgroundColor: isDark ? '#212121' : '#f9f9f9',
+      icon: iconPath,
+      titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
+      titleBarOverlay: isMac
+        ? undefined
+        : {
+            color: isDark ? '#212121' : '#f9f9f9',
+            symbolColor: isDark ? '#ffffff' : '#0d0d0d',
+            height: 44
+          },
       trafficLightPosition: isMac ? { x: 14, y: 14 } : undefined,
       webPreferences: {
         preload: path.join(__dirname, '../preload/index.js'),
@@ -36,6 +48,7 @@ export class WindowManager {
     this.setupWindowEvents();
     this.setupIpc();
     this.setupApplicationMenu();
+    this.setupThemeEvents();
 
     // When the tab bar HTML has finished loading, initialize or restore tabs
     this.window.webContents.once('did-finish-load', () => {
@@ -116,10 +129,38 @@ export class WindowManager {
     ipcMain.on(IPC_CHANNELS.TAB_NAVIGATE_FORWARD, (_event, tabId?: string) => {
       this.tabManager?.navigateForward(tabId);
     });
+
+    ipcMain.removeHandler(IPC_CHANNELS.THEME_GET);
+    ipcMain.handle(IPC_CHANNELS.THEME_GET, () => {
+      return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+    });
+  }
+
+  private setupThemeEvents(): void {
+    nativeTheme.on('updated', () => {
+      const dark = nativeTheme.shouldUseDarkColors;
+      if (process.platform === 'win32' && this.window && !this.window.isDestroyed()) {
+        try {
+          this.window.setTitleBarOverlay({
+            color: dark ? '#212121' : '#f9f9f9',
+            symbolColor: dark ? '#ffffff' : '#0d0d0d',
+            height: 44
+          });
+        } catch (e) {
+          console.error('[WindowManager] Failed to update titleBarOverlay:', e);
+        }
+      }
+      this.window?.webContents.send(IPC_CHANNELS.THEME_CHANGED, dark ? 'dark' : 'light');
+    });
   }
 
   private setupApplicationMenu(): void {
     const isMac = process.platform === 'darwin';
+
+    if (!isMac) {
+      Menu.setApplicationMenu(null);
+      return;
+    }
 
     const template: MenuItemConstructorOptions[] = [
       ...(isMac
