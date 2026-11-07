@@ -3,14 +3,23 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { IPC_CHANNELS, ThemeMode, ThemeStatePayload } from '../common/types';
 import { TabManager } from './tab-manager';
+import { SettingsStore } from './settings-store';
 
 export class WindowManager {
   private window: BrowserWindow | null = null;
   private tabManager: TabManager | null = null;
+  private settingsStore: SettingsStore;
+
+  constructor() {
+    this.settingsStore = new SettingsStore();
+  }
 
   public createWindow(): BrowserWindow {
     const isMac = process.platform === 'darwin';
-    nativeTheme.themeSource = 'system';
+    const savedSettings = this.settingsStore.load();
+    
+    // Apply persisted theme mode
+    nativeTheme.themeSource = savedSettings.themeMode;
     const isDark = nativeTheme.shouldUseDarkColors;
 
     const assetsIcon = process.platform === 'win32'
@@ -44,7 +53,17 @@ export class WindowManager {
       }
     });
 
+    if (!isMac) {
+      this.window.setMenuBarVisibility(false);
+    }
+
     this.tabManager = new TabManager(this.window);
+    this.tabManager.initZoomFactor(savedSettings.zoomFactor);
+
+    // Save zoom changes initiated by keyboard shortcuts or methods
+    this.tabManager.setOnZoomChange((zoomFactor: number) => {
+      this.settingsStore.save({ zoomFactor });
+    });
 
     // Load Tab Bar UI
     const rendererPath = path.join(__dirname, '../renderer/index.html');
@@ -95,26 +114,63 @@ export class WindowManager {
       this.window = null;
       this.tabManager = null;
     });
+
+    // Keyboard shortcuts for tab bar window itself
+    this.window.webContents.on('before-input-event', (event, input) => {
+      if (input.type !== 'keyDown') return;
+      const isCtrl = process.platform === 'darwin' ? input.meta : input.control;
+
+      if (isCtrl && (input.key === '=' || input.key === '+')) {
+        event.preventDefault();
+        this.tabManager?.zoomIn();
+      } else if (isCtrl && input.key === '-') {
+        event.preventDefault();
+        this.tabManager?.zoomOut();
+      } else if (isCtrl && input.key === '0') {
+        event.preventDefault();
+        this.tabManager?.resetZoom();
+      } else if (isCtrl && input.key.toLowerCase() === 't') {
+        event.preventDefault();
+        this.tabManager?.createTab();
+      } else if (isCtrl && input.key.toLowerCase() === 'w') {
+        event.preventDefault();
+        const activeId = this.tabManager?.getActiveTabId();
+        if (activeId) this.tabManager?.closeTab(activeId);
+      } else if (isCtrl && input.key.toLowerCase() === 'r') {
+        event.preventDefault();
+        this.tabManager?.reloadTab();
+      } else if (isCtrl && input.key === 'Tab') {
+        event.preventDefault();
+        if (input.shift) {
+          this.tabManager?.selectPreviousTab();
+        } else {
+          this.tabManager?.selectNextTab();
+        }
+      }
+    });
+  }
+
+  private updateTitleBarOverlay(): void {
+    if (process.platform === 'win32' && this.window && !this.window.isDestroyed()) {
+      const isDark = nativeTheme.shouldUseDarkColors;
+      try {
+        this.window.setTitleBarOverlay({
+          color: isDark ? '#212121' : '#f9f9f9',
+          symbolColor: isDark ? '#ffffff' : '#0d0d0d',
+          height: 44
+        });
+      } catch (e) {
+        console.error('[WindowManager] Failed to update titleBarOverlay:', e);
+      }
+    }
   }
 
   private setupThemeEvents(): void {
     nativeTheme.on('updated', () => {
       if (!this.window || this.window.isDestroyed()) return;
-      const dark = nativeTheme.shouldUseDarkColors;
-      this.window.setBackgroundColor(dark ? '#212121' : '#f9f9f9');
-
-      if (process.platform === 'win32') {
-        try {
-          this.window.setTitleBarOverlay({
-            color: dark ? '#212121' : '#f9f9f9',
-            symbolColor: dark ? '#ffffff' : '#0d0d0d',
-            height: 44
-          });
-        } catch (e) {
-          console.error('[WindowManager] Failed to update titleBarOverlay:', e);
-        }
-      }
-
+      const isDark = nativeTheme.shouldUseDarkColors;
+      this.window.setBackgroundColor(isDark ? '#212121' : '#f9f9f9');
+      this.updateTitleBarOverlay();
       this.notifyThemeChanged();
       this.setupApplicationMenu();
     });
@@ -153,7 +209,34 @@ export class WindowManager {
     ipcMain.removeAllListeners(IPC_CHANNELS.SET_THEME);
     ipcMain.on(IPC_CHANNELS.SET_THEME, (_event, mode: ThemeMode) => {
       nativeTheme.themeSource = mode;
+      this.settingsStore.save({ themeMode: mode });
+      if (this.window && !this.window.isDestroyed()) {
+        const isDark = nativeTheme.shouldUseDarkColors;
+        this.window.setBackgroundColor(isDark ? '#212121' : '#f9f9f9');
+        this.updateTitleBarOverlay();
+      }
       this.notifyThemeChanged();
+      this.setupApplicationMenu();
+    });
+
+    // Zoom IPC handlers
+    ipcMain.removeHandler(IPC_CHANNELS.ZOOM_GET);
+    ipcMain.handle(IPC_CHANNELS.ZOOM_GET, () => {
+      return this.tabManager?.getZoomFactor() ?? 1.0;
+    });
+
+    ipcMain.removeHandler(IPC_CHANNELS.ZOOM_SET);
+    ipcMain.handle(IPC_CHANNELS.ZOOM_SET, (_event, factor: number) => {
+      const newZoom = this.tabManager?.setZoomFactor(factor) ?? 1.0;
+      this.settingsStore.save({ zoomFactor: newZoom });
+      return newZoom;
+    });
+
+    ipcMain.removeHandler(IPC_CHANNELS.ZOOM_RESET);
+    ipcMain.handle(IPC_CHANNELS.ZOOM_RESET, () => {
+      const newZoom = this.tabManager?.resetZoom() ?? 1.0;
+      this.settingsStore.save({ zoomFactor: newZoom });
+      return newZoom;
     });
 
     ipcMain.removeAllListeners(IPC_CHANNELS.TAB_CREATE);
@@ -195,11 +278,6 @@ export class WindowManager {
   private setupApplicationMenu(): void {
     const isMac = process.platform === 'darwin';
     const currentMode = nativeTheme.themeSource;
-
-    if (!isMac) {
-      Menu.setApplicationMenu(null);
-      return;
-    }
 
     const template: MenuItemConstructorOptions[] = [
       ...(isMac
@@ -280,6 +358,8 @@ export class WindowManager {
                 checked: currentMode === 'system',
                 click: () => {
                   nativeTheme.themeSource = 'system';
+                  this.settingsStore.save({ themeMode: 'system' });
+                  this.updateTitleBarOverlay();
                   this.notifyThemeChanged();
                 }
               },
@@ -289,6 +369,8 @@ export class WindowManager {
                 checked: currentMode === 'dark',
                 click: () => {
                   nativeTheme.themeSource = 'dark';
+                  this.settingsStore.save({ themeMode: 'dark' });
+                  this.updateTitleBarOverlay();
                   this.notifyThemeChanged();
                 }
               },
@@ -298,15 +380,35 @@ export class WindowManager {
                 checked: currentMode === 'light',
                 click: () => {
                   nativeTheme.themeSource = 'light';
+                  this.settingsStore.save({ themeMode: 'light' });
+                  this.updateTitleBarOverlay();
                   this.notifyThemeChanged();
                 }
               }
             ]
           },
           { type: 'separator' },
-          { role: 'resetZoom' as const },
-          { role: 'zoomIn' as const },
-          { role: 'zoomOut' as const },
+          {
+            label: 'Actual Size',
+            accelerator: 'CmdOrCtrl+0',
+            click: () => {
+              this.tabManager?.resetZoom();
+            }
+          },
+          {
+            label: 'Zoom In',
+            accelerator: 'CmdOrCtrl+=',
+            click: () => {
+              this.tabManager?.zoomIn();
+            }
+          },
+          {
+            label: 'Zoom Out',
+            accelerator: 'CmdOrCtrl+-',
+            click: () => {
+              this.tabManager?.zoomOut();
+            }
+          },
           { type: 'separator' },
           { role: 'togglefullscreen' as const }
         ]

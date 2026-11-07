@@ -18,7 +18,11 @@ assert.strictEqual(typeof IPC_CHANNELS.FULLSCREEN_UPDATE, 'string');
 assert.strictEqual(typeof IPC_CHANNELS.GET_THEME, 'string');
 assert.strictEqual(typeof IPC_CHANNELS.SET_THEME, 'string');
 assert.strictEqual(typeof IPC_CHANNELS.THEME_GET, 'string');
-console.log('✔ IPC Channels are correctly defined.\n');
+assert.strictEqual(typeof IPC_CHANNELS.ZOOM_UPDATE, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.ZOOM_GET, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.ZOOM_SET, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.ZOOM_RESET, 'string');
+console.log('✔ IPC Channels (including Theme and Zoom) are correctly defined.\n');
 
 // Test 2: URL & Origin validation logic
 console.log('Test 2: Verifying Domain Allowlist logic...');
@@ -105,8 +109,16 @@ const mockContext = vm.createContext({
   },
   document: {
     getElementById: () => ({
-      addEventListener: () => {}
-    })
+      addEventListener: () => {},
+      classList: {
+        add: () => {},
+        remove: () => {},
+        contains: () => false,
+        toggle: () => false
+      },
+      setAttribute: () => {}
+    }),
+    addEventListener: () => {}
   },
   console
 });
@@ -120,10 +132,28 @@ console.log('✔ Renderer script browser-compatibility verified (no CommonJS exp
 console.log('Test 5: Verifying Theme switching contracts...');
 assert.strictEqual(typeof IPC_CHANNELS.THEME_GET, 'string');
 assert.strictEqual(typeof IPC_CHANNELS.THEME_CHANGED, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.SET_THEME, 'string');
 console.log('✔ Theme contracts verified.\n');
 
-// Test 6: Platform icon assets verification
-console.log('Test 6: Verifying platform icon assets...');
+// Test 6: Zoom factor clamping and step logic
+console.log('Test 6: Verifying Zoom factor limits (80% to 150%, step 10%)...');
+function clampZoom(factor) {
+  return Math.min(1.5, Math.max(0.8, Math.round(factor * 10) / 10));
+}
+assert.strictEqual(clampZoom(1.0), 1.0);
+assert.strictEqual(clampZoom(0.8), 0.8);
+assert.strictEqual(clampZoom(0.7), 0.8, 'Zoom must not go below 80%');
+assert.strictEqual(clampZoom(0.5), 0.8, 'Zoom must not go below 80%');
+assert.strictEqual(clampZoom(1.5), 1.5);
+assert.strictEqual(clampZoom(1.6), 1.5, 'Zoom must not exceed 150%');
+assert.strictEqual(clampZoom(2.0), 1.5, 'Zoom must not exceed 150%');
+assert.strictEqual(clampZoom(1.0 + 0.1), 1.1);
+assert.strictEqual(clampZoom(1.1 + 0.1), 1.2);
+assert.strictEqual(clampZoom(1.2 - 0.1), 1.1);
+console.log('✔ Zoom clamping logic verified (80% to 150%).\n');
+
+// Test 7: Platform icon assets verification
+console.log('Test 7: Verifying platform icon assets...');
 const assetsDir = path.join(__dirname, '../assets');
 assert(fs.existsSync(path.join(assetsDir, 'icon.ico')), 'Windows icon.ico must exist');
 assert(fs.existsSync(path.join(assetsDir, 'icon.icns')), 'macOS icon.icns must exist');

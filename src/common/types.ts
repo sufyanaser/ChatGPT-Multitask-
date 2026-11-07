@@ -32,12 +32,22 @@ export interface ThemeStatePayload {
   isDark: boolean;
 }
 
+export interface ZoomStatePayload {
+  zoomFactor: number;
+}
+
+export interface UserSettings {
+  themeMode: ThemeMode;
+  zoomFactor: number;
+}
+
 export const IPC_CHANNELS = {
   // Main -> Renderer
   TABS_STATE_UPDATE: 'tabs:state-update',
   THEME_UPDATE: 'theme:update',
   THEME_CHANGED: 'theme:changed',
   FULLSCREEN_UPDATE: 'window:fullscreen-update',
+  ZOOM_UPDATE: 'zoom:update',
   
   // Renderer -> Main
   TAB_CREATE: 'tabs:create',
@@ -52,5 +62,10 @@ export const IPC_CHANNELS = {
   // Theme Sync
   THEME_GET: 'theme:get',
   GET_THEME: 'theme:get',
-  SET_THEME: 'theme:set'
+  SET_THEME: 'theme:set',
+
+  // Zoom Sync
+  ZOOM_GET: 'zoom:get',
+  ZOOM_SET: 'zoom:set',
+  ZOOM_RESET: 'zoom:reset'
 } as const;

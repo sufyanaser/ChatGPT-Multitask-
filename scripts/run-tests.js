@@ -31,4 +31,19 @@ if (smokeRes.status !== 0) {
   process.exit(smokeRes.status || 1);
 }
 
+// 3. Run theme & zoom live verification
+console.log('--- Step 3: Theme & Zoom Live Verification ---');
+const zoomRes = spawnSync(electronBin, [path.join(__dirname, 'verify-theme-zoom.js')], {
+  stdio: 'inherit',
+  env: {
+    ...process.env,
+    ELECTRON_ENABLE_LOGGING: '1'
+  }
+});
+
+if (zoomRes.status !== 0) {
+  console.error('Theme & Zoom live verification failed with code', zoomRes.status);
+  process.exit(zoomRes.status || 1);
+}
+
 console.log('\nAll tests passed successfully!');

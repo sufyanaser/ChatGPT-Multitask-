@@ -6,6 +6,7 @@ const IPC = {
   THEME_UPDATE: 'theme:update',
   THEME_CHANGED: 'theme:changed',
   FULLSCREEN_UPDATE: 'window:fullscreen-update',
+  ZOOM_UPDATE: 'zoom:update',
   TAB_CREATE: 'tabs:create',
   TAB_CLOSE: 'tabs:close',
   TAB_SELECT: 'tabs:select',
@@ -16,7 +17,10 @@ const IPC = {
   GET_INITIAL_STATE: 'tabs:get-initial-state',
   THEME_GET: 'theme:get',
   GET_THEME: 'theme:get',
-  SET_THEME: 'theme:set'
+  SET_THEME: 'theme:set',
+  ZOOM_GET: 'zoom:get',
+  ZOOM_SET: 'zoom:set',
+  ZOOM_RESET: 'zoom:reset'
 } as const;
 
 export interface ElectronTabAPI {
@@ -34,6 +38,10 @@ export interface ElectronTabAPI {
   setTheme: (mode: ThemeMode) => void;
   onThemeUpdate: (callback: (themeOrPayload: any) => void) => () => void;
   onFullscreenUpdate: (callback: (isFullscreen: boolean) => void) => () => void;
+  getZoom: () => Promise<number>;
+  setZoom: (zoomFactor: number) => Promise<number>;
+  resetZoom: () => Promise<number>;
+  onZoomUpdate: (callback: (zoomFactor: number) => void) => () => void;
 }
 
 const api: ElectronTabAPI = {
@@ -114,6 +122,29 @@ const api: ElectronTabAPI = {
 
     return () => {
       ipcRenderer.removeListener(IPC.FULLSCREEN_UPDATE, listener);
+    };
+  },
+
+  getZoom: async (): Promise<number> => {
+    return ipcRenderer.invoke(IPC.ZOOM_GET);
+  },
+
+  setZoom: async (zoomFactor: number): Promise<number> => {
+    return ipcRenderer.invoke(IPC.ZOOM_SET, zoomFactor);
+  },
+
+  resetZoom: async (): Promise<number> => {
+    return ipcRenderer.invoke(IPC.ZOOM_RESET);
+  },
+
+  onZoomUpdate: (callback: (zoomFactor: number) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, factor: number) => {
+      callback(factor);
+    };
+    ipcRenderer.on(IPC.ZOOM_UPDATE, listener);
+
+    return () => {
+      ipcRenderer.removeListener(IPC.ZOOM_UPDATE, listener);
     };
   }
 };

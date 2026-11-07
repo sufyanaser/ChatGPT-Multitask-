@@ -24,6 +24,8 @@ export class TabManager {
   private window: BrowserWindow;
   private sessionManager: SessionManager;
   private stateStore: TabStateStore;
+  private zoomFactor: number = 1.0;
+  private onZoomChangeCallback?: (zoomFactor: number) => void;
 
   constructor(window: BrowserWindow) {
     this.window = window;
@@ -42,6 +44,47 @@ export class TabManager {
 
   public getActiveTabId(): string | null {
     return this.activeTabId;
+  }
+
+  public setOnZoomChange(callback: (zoomFactor: number) => void): void {
+    this.onZoomChangeCallback = callback;
+  }
+
+  public initZoomFactor(factor: number): void {
+    if (typeof factor === 'number' && !isNaN(factor)) {
+      this.zoomFactor = Math.min(1.5, Math.max(0.8, Math.round(factor * 10) / 10));
+    }
+  }
+
+  public getZoomFactor(): number {
+    return this.zoomFactor;
+  }
+
+  public setZoomFactor(factor: number): number {
+    const clamped = Math.min(1.5, Math.max(0.8, Math.round(factor * 10) / 10));
+    this.zoomFactor = clamped;
+    for (const tab of this.tabs) {
+      try {
+        tab.view.webContents.setZoomFactor(clamped);
+      } catch (err) {
+        console.warn(`[TabManager] Error setting zoom on tab ${tab.id}:`, err);
+      }
+    }
+    this.onZoomChangeCallback?.(this.zoomFactor);
+    this.notifyZoomChanged();
+    return this.zoomFactor;
+  }
+
+  public zoomIn(): number {
+    return this.setZoomFactor(this.zoomFactor + 0.1);
+  }
+
+  public zoomOut(): number {
+    return this.setZoomFactor(this.zoomFactor - 0.1);
+  }
+
+  public resetZoom(): number {
+    return this.setZoomFactor(1.0);
   }
 
   public createTab(
@@ -64,6 +107,12 @@ export class TabManager {
         spellcheck: true
       }
     });
+
+    try {
+      view.webContents.setZoomFactor(this.zoomFactor);
+    } catch (err) {
+      console.warn('[TabManager] Initial zoom set error:', err);
+    }
 
     const newTab: ManagedTab = {
       id: tabId,
@@ -117,6 +166,7 @@ export class TabManager {
     try {
       this.window.contentView.addChildView(targetTab.view);
       this.updateActiveViewBounds();
+      targetTab.view.webContents.setZoomFactor(this.zoomFactor);
       targetTab.view.webContents.focus();
     } catch (err) {
       console.error('[TabManager] Error attaching active child view:', err);
@@ -300,6 +350,48 @@ export class TabManager {
       return { action: 'deny' };
     });
 
+    // Ensure zoom is applied when content finishes loading
+    wc.on('did-finish-load', () => {
+      try {
+        wc.setZoomFactor(this.zoomFactor);
+      } catch (err) {
+        console.warn(`[TabManager] Failed to apply zoom to tab ${tab.id}:`, err);
+      }
+    });
+
+    // Keyboard shortcuts forwarded from webview content
+    wc.on('before-input-event', (event, input) => {
+      if (input.type !== 'keyDown') return;
+      const isCtrl = process.platform === 'darwin' ? input.meta : input.control;
+
+      if (isCtrl && (input.key === '=' || input.key === '+')) {
+        event.preventDefault();
+        this.zoomIn();
+      } else if (isCtrl && input.key === '-') {
+        event.preventDefault();
+        this.zoomOut();
+      } else if (isCtrl && input.key === '0') {
+        event.preventDefault();
+        this.resetZoom();
+      } else if (isCtrl && input.key.toLowerCase() === 't') {
+        event.preventDefault();
+        this.createTab();
+      } else if (isCtrl && input.key.toLowerCase() === 'w') {
+        event.preventDefault();
+        this.closeTab(tab.id);
+      } else if (isCtrl && input.key.toLowerCase() === 'r') {
+        event.preventDefault();
+        this.reloadTab(tab.id);
+      } else if (isCtrl && input.key === 'Tab') {
+        event.preventDefault();
+        if (input.shift) {
+          this.selectPreviousTab();
+        } else {
+          this.selectNextTab();
+        }
+      }
+    });
+
     // Title tracking
     wc.on('page-title-updated', (_event, rawTitle) => {
       let cleanTitle = (rawTitle || '').replace(/\s*-\s*ChatGPT\s*$/i, '').trim();
@@ -349,6 +441,11 @@ export class TabManager {
     if (this.window.isDestroyed()) return;
     const payload = this.getStatePayload();
     this.window.webContents.send(IPC_CHANNELS.TABS_STATE_UPDATE, payload);
+  }
+
+  private notifyZoomChanged(): void {
+    if (this.window.isDestroyed()) return;
+    this.window.webContents.send(IPC_CHANNELS.ZOOM_UPDATE, this.zoomFactor);
   }
 
   private persistState(): void {
