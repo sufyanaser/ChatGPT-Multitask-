@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-08
+
+Pre-release. Not a stable release.
+
 ### Fixed
 
 - Split-view divider was never visible: the renderer toggled an inline
@@ -22,6 +26,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Right-click context menu was absent in ChatGPT and side-browser views.
   Links, images, editable fields and text selection now offer the matching
   actions. Keyboard shortcuts are unchanged.
+- Theme switching was re-verified with the existing theme/zoom checks; no code
+  change was required.
+
+### Known issues
+
+- Search and the Sidebar toggle inside ChatGPT did not respond after sign-in in
+  one report. The cause is not confirmed; it needs a check on Windows with a
+  signed-in account.
+- Split view: while the update popover is open, the chat content narrows by
+  about 340px. The divider drag hides the ChatGPT view and it resizes on
+  release rather than live.
+- Update popover: the popover reserves a strip of the content area while open.
+- Interactive tests on macOS are not complete. The Windows and macOS packages
+  were built by CI but not exercised by hand.
 
 ## [0.2.0] - 2026-11-08
 

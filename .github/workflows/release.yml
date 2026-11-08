@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Existing release tag (e.g. v0.2.0)'
+        description: 'Existing release tag (e.g. v0.2.1)'
         required: true
-        default: 'v0.2.0'
+        default: 'v0.2.1'
 
 permissions:
   contents: read
@@ -186,6 +186,24 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout tag (release notes source)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate-tag.outputs.tag }}
+
+      - name: Extract release notes from CHANGELOG
+        shell: bash
+        env:
+          VERSION: ${{ needs.validate-tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { p = 1; next }
+            /^## \[/ { p = 0 }
+            p
+          ' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+          test -s "$RUNNER_TEMP/release-notes.md" || { echo "No CHANGELOG section for $VERSION" >&2; exit 1; }
+
       - name: Download Windows artifacts
         uses: actions/download-artifact@v4
         with:
@@ -215,7 +233,13 @@ jobs:
           VERSION: ${{ needs.validate-tag.outputs.version }}
         run: |
           set -euo pipefail
-          gh release create "$TAG" \
+          # Pre-1.0 (0.x) releases are published as GitHub pre-releases, so they
+          # are not offered as "latest" and are not treated as stable.
+          PRERELEASE_FLAG=""
+          if [[ "$VERSION" == 0.* ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          gh release create "$TAG" $PRERELEASE_FLAG \
             dist-artifacts/ChatGPT-Multitask-Windows-x64-Setup.exe \
             dist-artifacts/ChatGPT-Multitask-Windows-x64-Setup.exe.blockmap \
             dist-artifacts/latest.yml \
@@ -227,5 +251,5 @@ jobs:
             dist-artifacts/SHA256SUMS.txt \
             --repo "${GITHUB_REPOSITORY}" \
             --title "ChatGPT Multitask v${VERSION}" \
-            --generate-notes \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
             --verify-tag

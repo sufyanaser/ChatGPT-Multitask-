@@ -57,7 +57,7 @@ class AppViewController {
   private currentUpdateState: 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'ready' | 'error' = 'idle';
   private isCheckingUpdates: boolean = false;
   private checkRequestId: number = 0;
-  private currentAppVersion: string = '0.2.0';
+  private currentAppVersion: string = '0.2.1';
 
   // State trackers
   private currentThemeMode: ThemeMode = 'system';
@@ -814,7 +814,7 @@ class AppViewController {
         const notesEl = document.getElementById('update-release-notes');
 
         const currentVer = data?.currentVersion || this.currentAppVersion;
-        const latestVer = data?.latestVersion || '0.2.0';
+        const latestVer = data?.latestVersion || '0.2.1';
 
         if (currEl) currEl.textContent = `v${currentVer}`;
         if (latestEl) latestEl.textContent = `v${latestVer}`;
