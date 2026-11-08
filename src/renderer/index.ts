@@ -88,11 +88,11 @@ class AppViewController {
     this.btnBrowserForward = document.getElementById('btn-browser-forward') as HTMLButtonElement | null;
     this.btnBrowserReload = document.getElementById('btn-browser-reload') as HTMLButtonElement | null;
     this.inputBrowserUrl = document.getElementById('input-browser-url') as HTMLInputElement | null;
-    this.browserTabsList = document.getElementById('browser-tabs');
+    this.browserTabsList = document.getElementById('browser-tabs-list');
     this.btnBrowserNewTab = document.getElementById('btn-browser-new-tab') as HTMLButtonElement | null;
     this.btnModeChatOnly = document.getElementById('btn-mode-chat-only') as HTMLButtonElement | null;
     this.btnModeSplit = document.getElementById('btn-mode-split') as HTMLButtonElement | null;
-    this.btnModeBrowserOnly = document.getElementById('btn-mode-browser-only') as HTMLButtonElement | null;
+    this.btnModeBrowserOnly = document.getElementById('btn-mode-full') as HTMLButtonElement | null;
     this.btnBrowserClose = document.getElementById('btn-browser-close') as HTMLButtonElement | null;
     this.splitDivider = document.getElementById('split-divider');
 

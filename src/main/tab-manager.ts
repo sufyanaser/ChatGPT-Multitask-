@@ -7,6 +7,105 @@ import { TabStateStore } from './tab-state-store';
 export const TAB_BAR_HEIGHT = 44;
 const DEFAULT_URL = 'https://chatgpt.com';
 
+/**
+ * P0 Scoped Arabic RTL & Bidirectional Layout Engine.
+ * High-specificity CSS rules strictly scoped to assistant markdown containers.
+ */
+export const RTL_SCOPED_CSS = `
+/* Scoped Arabic RTL & Bidirectional Layout Engine */
+.markdown[dir="rtl"], [data-message-author-role="assistant"] .prose[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+}
+.markdown[dir="rtl"] blockquote {
+  border-left: none !important;
+  border-right: 3px solid currentColor !important;
+  padding-left: 0 !important;
+  padding-right: 14px !important;
+}
+.markdown[dir="rtl"] ul, .markdown[dir="rtl"] ol {
+  padding-left: 0 !important;
+  padding-right: 24px !important;
+  direction: rtl !important;
+}
+.markdown[dir="rtl"] table th, .markdown[dir="rtl"] table td {
+  text-align: right;
+}
+/* Code blocks and inline code MUST stay strictly LTR */
+.markdown pre, .markdown pre code, .markdown .code-block, pre {
+  direction: ltr !important;
+  text-align: left !important;
+  unicode-bidi: isolate !important;
+}
+.markdown :not(pre) > code {
+  unicode-bidi: isolate !important;
+  direction: ltr !important;
+  display: inline-block;
+}
+/* Paragraph & heading level direction for mixed turns */
+.markdown p[dir="rtl"], .markdown h1[dir="rtl"], .markdown h2[dir="rtl"], .markdown h3[dir="rtl"], .markdown h4[dir="rtl"], .markdown h5[dir="rtl"], .markdown h6[dir="rtl"] {
+  direction: rtl !important;
+  text-align: right !important;
+  unicode-bidi: isolate !important;
+}
+.markdown p[dir="ltr"], .markdown h1[dir="ltr"], .markdown h2[dir="ltr"], .markdown h3[dir="ltr"], .markdown h4[dir="ltr"], .markdown h5[dir="ltr"], .markdown h6[dir="ltr"] {
+  direction: ltr !important;
+  text-align: left !important;
+  unicode-bidi: isolate !important;
+}
+`;
+
+/**
+ * P0 Lightweight Idempotent MutationObserver Script.
+ * Ensures dynamically rendered and streamed assistant messages receive accurate directionality.
+ */
+export const RTL_OBSERVER_SCRIPT = `
+(function() {
+  if (window.__chatgptRtlInstalled) return;
+  window.__chatgptRtlInstalled = true;
+
+  const ARABIC_REGEX = /[\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF\\uFB50-\\uFDFF\\uFE70-\\uFEFF]/g;
+  const LATIN_REGEX = /[A-Za-z]/g;
+
+  function detectDir(text) {
+    if (!text) return null;
+    const clean = text.trim();
+    if (!clean) return null;
+    const arCount = (clean.match(ARABIC_REGEX) || []).length;
+    if (arCount === 0) return 'ltr';
+    const enCount = (clean.match(LATIN_REGEX) || []).length;
+    return (arCount >= enCount * 0.3) ? 'rtl' : 'ltr';
+  }
+
+  function applyRtl() {
+    const markdowns = document.querySelectorAll('.markdown, [data-message-author-role="assistant"] .prose');
+    for (let i = 0; i < markdowns.length; i++) {
+      const md = markdowns[i];
+      const dir = detectDir(md.textContent);
+      if (dir && md.getAttribute('dir') !== dir) {
+        md.setAttribute('dir', dir);
+      }
+
+      // Check direct block children for mixed-turn resilience
+      const blocks = md.querySelectorAll('p, h1, h2, h3, h4, h5, h6');
+      for (let j = 0; j < blocks.length; j++) {
+        const b = blocks[j];
+        const bDir = detectDir(b.textContent);
+        if (bDir && b.getAttribute('dir') !== bDir) {
+          b.setAttribute('dir', bDir);
+        }
+      }
+    }
+  }
+
+  applyRtl();
+  const observer = new MutationObserver(() => applyRtl());
+  const target = document.body || document.documentElement;
+  if (target) observer.observe(target, { childList: true, subtree: true, characterData: true });
+})();
+`;
+
+
 interface ManagedTab {
   id: string;
   view: WebContentsView;
@@ -478,6 +577,21 @@ export class TabManager {
         console.warn(`[TabManager] Failed to apply zoom to tab ${tab.id}:`, err);
       }
     });
+
+    // P0: Arabic RTL Answer Rendering support
+    const injectRtlSupport = (): void => {
+      if (wc.isDestroyed()) return;
+      wc.insertCSS(RTL_SCOPED_CSS).catch(err => {
+        console.warn(`[TabManager] Failed to insert RTL CSS on tab ${tab.id}:`, err);
+      });
+      wc.executeJavaScript(RTL_OBSERVER_SCRIPT).catch(err => {
+        console.warn(`[TabManager] Failed to inject RTL observer on tab ${tab.id}:`, err);
+      });
+    };
+
+    wc.on('dom-ready', injectRtlSupport);
+    wc.on('did-finish-load', injectRtlSupport);
+    wc.on('did-navigate-in-page', injectRtlSupport);
 
     // Keyboard shortcuts forwarded from webview content
     wc.on('before-input-event', (event, input) => {

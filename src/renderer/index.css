@@ -94,9 +94,14 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-button:focus-visible, input:focus-visible {
+button:focus-visible, input:focus-visible, .tab-item:focus-visible {
   outline: 2px solid var(--accent-color);
   outline-offset: 1px;
+}
+
+.tab-item:focus-visible {
+  outline-offset: -2px;
+  z-index: 2;
 }
 
 .tab-bar-container {
@@ -154,6 +159,7 @@ button:focus-visible, input:focus-visible {
   align-items: center;
   gap: 2px;
   margin-right: 6px;
+  flex-shrink: 0;
   -webkit-app-region: no-drag;
 }
 
@@ -190,9 +196,10 @@ button:focus-visible, input:focus-visible {
   display: flex;
   align-items: center;
   gap: 3px;
+  flex: 0 1 auto;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  max-width: calc(100% - 200px);
   height: 100%;
   padding: 0 2px;
   -webkit-app-region: no-drag;
@@ -359,9 +366,9 @@ body.theme-dark .tab-type-work {
 
 /* Draggable Region */
 .drag-spacer {
-  flex: 1;
+  flex: 1 1 auto;
   height: 100%;
-  min-width: 24px;
+  min-width: 16px;
   -webkit-app-region: drag;
 }
 
@@ -371,6 +378,7 @@ body.theme-dark .tab-type-work {
   align-items: center;
   gap: 4px;
   padding-left: 4px;
+  flex-shrink: 0;
   -webkit-app-region: no-drag;
 }
 
