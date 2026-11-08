@@ -64,6 +64,7 @@ class AppViewController {
   private currentZoomFactor: number = 1.0;
   private currentLayoutMode: LayoutMode = 'chat-only';
   private currentSplitRatio: number = 0.5;
+  private overlayReservePx: number = 0;
   private draggedTabIndex: number | null = null;
   private isResizingSplit: boolean = false;
   private isUrlInputFocused: boolean = false;
@@ -464,34 +465,42 @@ class AppViewController {
   private bindSplitDividerEvents(): void {
     if (!this.splitDivider) return;
 
+    // While dragging, main detaches the WebContentsViews, so this document is the
+    // only recipient of pointer events. The divider moves live via CSS; the
+    // final ratio is committed on release, which also re-attaches the views.
     const onMouseMove = (e: MouseEvent) => {
       if (!this.isResizingSplit) return;
-      const winWidth = window.innerWidth;
+      const winWidth = this.workspaceWidth();
       if (winWidth <= 0) return;
 
       const rawRatio = e.clientX / winWidth;
       const clampedRatio = Math.max(0.2, Math.min(0.8, Math.round(rawRatio * 1000) / 1000));
       this.currentSplitRatio = clampedRatio;
 
-      document.documentElement.style.setProperty('--split-x', `${clampedRatio * 100}%`);
-      window.api?.setSplitRatio?.(clampedRatio);
+      this.applySplitVar(clampedRatio);
     };
 
-    const onMouseUp = () => {
-      if (this.isResizingSplit) {
-        this.isResizingSplit = false;
-        document.body.classList.remove('is-resizing');
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-      }
+    const endDrag = () => {
+      if (!this.isResizingSplit) return;
+      this.isResizingSplit = false;
+      document.body.classList.remove('is-resizing');
+      this.splitDivider?.classList.remove('dragging');
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', endDrag);
+      window.removeEventListener('blur', endDrag);
+      window.api?.setSplitRatio?.(this.currentSplitRatio);
+      window.api?.splitDragEnd?.();
     };
 
     this.splitDivider.addEventListener('mousedown', (e) => {
       e.preventDefault();
       this.isResizingSplit = true;
       document.body.classList.add('is-resizing');
+      this.splitDivider?.classList.add('dragging');
+      window.api?.splitDragStart?.();
       window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
+      window.addEventListener('mouseup', endDrag);
+      window.addEventListener('blur', endDrag);
     });
   }
 
@@ -535,6 +544,7 @@ class AppViewController {
     window.addEventListener('resize', () => {
       if (this.updatePopover && !this.updatePopover.classList.contains('hidden')) {
         this.updatePopoverPosition();
+        this.syncUpdatePopoverReserve();
       }
     });
 
@@ -598,6 +608,7 @@ class AppViewController {
     this.updatePopover.classList.remove('hidden');
     this.btnUpdates?.setAttribute('aria-expanded', 'true');
     this.updatePopoverPosition();
+    this.syncUpdatePopoverReserve();
 
     // If never checked before, trigger update check; otherwise restore current state
     if (this.currentUpdateState === 'idle' && !this.isCheckingUpdates) {
@@ -611,6 +622,34 @@ class AppViewController {
     if (!this.updatePopover || this.updatePopover.classList.contains('hidden')) return;
     this.updatePopover.classList.add('hidden');
     this.btnUpdates?.setAttribute('aria-expanded', 'false');
+    this.syncUpdatePopoverReserve();
+  }
+
+  /**
+   * WebContentsViews render above this document, so a root-level popover is
+   * hidden wherever a view overlaps it. While open, ask main to keep the views
+   * clear of the popover's horizontal extent (plus an 8px gap); the popover
+   * then sits in that reserved strip. Position and state logic are unchanged.
+   */
+  private syncUpdatePopoverReserve(): void {
+    let reserve = 0;
+    if (this.updatePopover && !this.updatePopover.classList.contains('hidden')) {
+      const rect = this.updatePopover.getBoundingClientRect();
+      reserve = Math.max(0, Math.ceil(window.innerWidth - rect.left + 8));
+    }
+    this.overlayReservePx = reserve;
+    window.api?.setOverlayReserve?.(reserve);
+    this.applySplitVar(this.currentSplitRatio);
+  }
+
+  /** Width the chat/browser views occupy; the overlay strip is excluded. */
+  private workspaceWidth(): number {
+    return Math.max(1, window.innerWidth - this.overlayReservePx);
+  }
+
+  /** Divider position in px, matching main's split line inside the workspace. */
+  private applySplitVar(ratio: number): void {
+    document.documentElement.style.setProperty('--split-x', `${Math.round(ratio * this.workspaceWidth())}px`);
   }
 
   /**
@@ -1289,7 +1328,7 @@ class AppViewController {
     document.body.classList.add(`layout-${layoutMode}`);
 
     // Update CSS variable for divider position
-    document.documentElement.style.setProperty('--split-x', `${splitRatio * 100}%`);
+    this.applySplitVar(splitRatio);
 
     // Update Split Toggle Button State in main header
     if (this.btnSplitToggle) {
@@ -1314,8 +1353,10 @@ class AppViewController {
     }
 
     // Show/hide split divider
+    // Class toggle, not inline style: `.hidden` is `display:none !important`, so an
+    // inline `display:block` never overrides it and the divider stayed invisible.
     if (this.splitDivider) {
-      this.splitDivider.style.display = layoutMode === 'split' ? 'block' : 'none';
+      this.splitDivider.classList.toggle('hidden', layoutMode !== 'split');
     }
 
     // Show/hide browser header
