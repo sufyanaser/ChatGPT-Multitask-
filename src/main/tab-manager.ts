@@ -28,6 +28,9 @@ export class TabManager {
   private stateStore: TabStateStore;
   private zoomFactor: number = 1.0;
   private onZoomChangeCallback?: (zoomFactor: number) => void;
+  private persistTimer: NodeJS.Timeout | null = null;
+  private customBounds: { x: number; y: number; width: number; height: number } | null = null;
+  private isViewAttached: boolean = true;
 
   constructor(window: BrowserWindow) {
     this.window = window;
@@ -96,9 +99,8 @@ export class TabManager {
   ): ConversationType {
     if (override === 'chat') return 'chat';
     if (override === 'work') return 'work';
-    // When override is 'auto':
-    // Without unsupported scraping, arbitrary title parsing, or private API sniffing,
-    // we return 'unknown' to avoid mislabeling standard conversations as work or vice-versa.
+    // Without unsupported scraping or private API sniffing,
+    // we return 'unknown' in automatic mode to avoid mislabeling.
     return 'unknown';
   }
 
@@ -218,7 +220,6 @@ export class TabManager {
 
   public selectTab(tabId: string): void {
     if (this.activeTabId === tabId) {
-      // Already active, just focus
       const active = this.getActiveTab();
       if (active) active.view.webContents.focus();
       return;
@@ -237,13 +238,15 @@ export class TabManager {
     }
 
     this.activeTabId = tabId;
-    try {
-      this.window.contentView.addChildView(targetTab.view);
-      this.updateActiveViewBounds();
-      targetTab.view.webContents.setZoomFactor(this.zoomFactor);
-      targetTab.view.webContents.focus();
-    } catch (err) {
-      console.error('[TabManager] Error attaching active child view:', err);
+    if (this.isViewAttached) {
+      try {
+        this.window.contentView.addChildView(targetTab.view);
+        this.updateActiveViewBounds();
+        targetTab.view.webContents.setZoomFactor(this.zoomFactor);
+        targetTab.view.webContents.focus();
+      } catch (err) {
+        console.error('[TabManager] Error attaching active child view:', err);
+      }
     }
 
     this.notifyStateChanged();
@@ -359,9 +362,38 @@ export class TabManager {
     }
   }
 
-  public updateActiveViewBounds(): void {
+  public setActiveViewVisible(visible: boolean): void {
+    this.isViewAttached = visible;
     const active = this.getActiveTab();
     if (!active || this.window.isDestroyed()) return;
+
+    if (visible) {
+      try {
+        this.window.contentView.addChildView(active.view);
+        this.updateActiveViewBounds();
+      } catch (err) {
+        console.warn('[TabManager] Error attaching view:', err);
+      }
+    } else {
+      try {
+        this.window.contentView.removeChildView(active.view);
+      } catch (err) {
+        console.warn('[TabManager] Error detaching view:', err);
+      }
+    }
+  }
+
+  public updateActiveViewBounds(customBounds?: { x: number; y: number; width: number; height: number }): void {
+    if (customBounds) {
+      this.customBounds = customBounds;
+    }
+    const active = this.getActiveTab();
+    if (!active || this.window.isDestroyed()) return;
+
+    if (this.customBounds) {
+      active.view.setBounds(this.customBounds);
+      return;
+    }
 
     const bounds = this.window.getContentBounds();
     active.view.setBounds({
@@ -417,7 +449,19 @@ export class TabManager {
       }
     });
 
+    // UX-002: Optimized window-open & image routing
     wc.setWindowOpenHandler(({ url }) => {
+      // Check if the requested window is a direct image asset / file download
+      const isImageAsset = /\.(png|jpe?g|gif|webp|svg|bmp)(\?.*)?$/i.test(url) ||
+                           url.includes('files.oaiusercontent.com') ||
+                           url.includes('/files/');
+
+      if (isImageAsset) {
+        // Open image asset in external default viewer without spawning a heavy conversation tab
+        shell.openExternal(url);
+        return { action: 'deny' };
+      }
+
       if (this.sessionManager.isUrlAllowed(url)) {
         this.createTab(url, true);
         return { action: 'deny' };
@@ -484,7 +528,6 @@ export class TabManager {
       tab.url = wc.getURL();
       tab.canGoBack = wc.navigationHistory ? wc.navigationHistory.canGoBack() : wc.canGoBack();
       tab.canGoForward = wc.navigationHistory ? wc.navigationHistory.canGoForward() : wc.canGoForward();
-      // Re-evaluate conversation type on navigation if in automatic mode
       tab.conversationType = this.resolveConversationType(tab.url, tab.typeOverride);
       this.notifyStateChanged();
       this.persistState();
@@ -526,7 +569,26 @@ export class TabManager {
     this.window.webContents.send(IPC_CHANNELS.ZOOM_UPDATE, this.zoomFactor);
   }
 
+  public flushPersistState(): void {
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer);
+      this.persistTimer = null;
+    }
+    this.executePersistState();
+  }
+
+  // UX-001: Debounced disk writes (400ms trailing) to eliminate event-loop blocking
   private persistState(): void {
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer);
+    }
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = null;
+      this.executePersistState();
+    }, 400);
+  }
+
+  private executePersistState(): void {
     this.stateStore.save({
       version: 1,
       tabs: this.tabs.map(t => ({

@@ -74,6 +74,7 @@ async function runTest() {
 
   // Test State Store Persistence
   console.log('Step 7: Verifying TabStateStore persistence with Conversation Types...');
+  tabManager.flushPersistState();
   const stateStore = new TabStateStore();
   const savedState = stateStore.load();
   assert(savedState !== null);

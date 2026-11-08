@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="index.css">
 </head>
 <body>
+  <!-- Tab Bar Container -->
   <div id="tab-bar-container" class="tab-bar-container">
     <!-- Window drag handle / macOS traffic light spacer -->
     <div id="traffic-light-spacer" class="traffic-light-spacer"></div>
@@ -47,8 +48,16 @@
     <!-- Empty draggable area to fill the rest of the tab bar -->
     <div class="drag-spacer"></div>
 
-    <!-- Trailing Controls: Zoom & Theme -->
+    <!-- Trailing Controls: Split-View, Zoom, Theme, Updates -->
     <div class="trailing-controls">
+      <!-- Split-View Browser Toggle (Gate H) -->
+      <button id="btn-split-toggle" class="nav-btn split-btn" title="Toggle Side Browser (Ctrl+\)" aria-label="Toggle Side Browser">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect>
+          <line x1="9" y1="2.5" x2="9" y2="13.5"></line>
+        </svg>
+      </button>
+
       <!-- Zoom Control with Popover -->
       <div class="zoom-control-container" id="zoom-control-container">
         <button id="btn-zoom" class="nav-btn zoom-btn" title="Text Size & Zoom (100%)" aria-label="Text Size & Zoom" aria-haspopup="dialog" aria-expanded="false">
@@ -75,10 +84,108 @@
           <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/>
         </svg>
       </button>
+
+      <!-- Check for Updates (UX-004) -->
+      <button id="btn-updates" class="nav-btn updates-btn" title="Check for Updates" aria-label="Check for Updates">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8" cy="8" r="6"></circle>
+          <polyline points="8 5 8 8 10 10"></polyline>
+        </svg>
+      </button>
     </div>
 
     <!-- Windows titlebar overlay space reservation (138px for minimize/maximize/close) -->
     <div id="windows-controls-spacer" class="windows-controls-spacer"></div>
+  </div>
+
+  <!-- Resizable Divider Handle (Gate H) -->
+  <div id="split-divider" class="split-divider hidden" title="Drag to resize side browser"></div>
+
+  <!-- Side Browser Workspace Header (Gate H) -->
+  <div id="browser-header" class="browser-header hidden">
+    <!-- Browser Navigation Controls -->
+    <div class="browser-nav-group">
+      <button id="btn-browser-back" class="nav-btn" title="Back" disabled>
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="10 3 5 8 10 13"></polyline>
+        </svg>
+      </button>
+      <button id="btn-browser-forward" class="nav-btn" title="Forward" disabled>
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 3 11 8 6 13"></polyline>
+        </svg>
+      </button>
+      <button id="btn-browser-reload" class="nav-btn" title="Reload">
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9L14 6.5"/>
+          <polyline points="14 2.5 14 6.5 10 6.5"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Address / Search Bar -->
+    <div class="browser-address-container">
+      <input id="input-browser-url" type="text" class="browser-address-input" placeholder="Search or enter web address..." spellcheck="false" autocomplete="off" />
+    </div>
+
+    <!-- Browser Tabs Strip (Phase H2) -->
+    <div id="browser-tabs-list" class="browser-tabs-list">
+      <!-- Browser tabs rendered dynamically -->
+    </div>
+    <button id="btn-browser-new-tab" class="nav-btn browser-new-tab-btn" title="New Browser Tab">
+      <svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="8" y1="3" x2="8" y2="13"></line>
+        <line x1="3" y1="8" x2="13" y2="8"></line>
+      </svg>
+    </button>
+
+    <!-- Layout Mode Switcher & Close -->
+    <div class="browser-layout-group">
+      <button id="btn-mode-split" class="browser-mode-btn active" title="Side by Side (Split View)">
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+          <rect x="2" y="2" width="12" height="12" rx="1.5"></rect>
+          <line x1="8" y1="2" x2="8" y2="14"></line>
+        </svg>
+      </button>
+      <button id="btn-mode-full" class="browser-mode-btn" title="Full Width Browser">
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+          <rect x="2" y="2" width="12" height="12" rx="1.5"></rect>
+        </svg>
+      </button>
+      <button id="btn-browser-close" class="nav-btn browser-close-panel-btn" title="Close Side Browser">
+        <svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="3" y1="3" x2="13" y2="13"></line>
+          <line x1="13" y1="3" x2="3" y2="13"></line>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Update Modal Dialog (UX-004) -->
+  <div id="update-modal" class="modal-backdrop hidden">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-update-title">
+      <div class="modal-header">
+        <h3 id="modal-update-title" class="modal-title">ChatGPT Multitask Update</h3>
+        <button id="btn-modal-close" class="modal-close-btn" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="update-version-row">
+          <span class="version-label">Installed Version:</span>
+          <span id="label-current-version" class="version-badge">0.1.0</span>
+        </div>
+        <div id="update-status-box" class="update-status-box">
+          <p id="label-update-status" class="status-text">Click "Check for Updates" to verify latest releases.</p>
+        </div>
+        <div id="update-notes-box" class="update-notes-box hidden">
+          <p class="notes-heading">Release Information:</p>
+          <div id="label-release-notes" class="notes-content"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-check-updates-now" class="modal-btn modal-btn-primary">Check for Updates</button>
+        <button id="btn-modal-dismiss" class="modal-btn modal-btn-secondary">Close</button>
+      </div>
+    </div>
   </div>
 
   <script src="index.js"></script>

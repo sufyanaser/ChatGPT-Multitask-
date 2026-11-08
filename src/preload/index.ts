@@ -1,12 +1,24 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { TabStatePayload, ThemeMode, ThemeStatePayload, TabTypeOverride } from '../common/types';
+import {
+  TabItem,
+  TabStatePayload,
+  ThemeMode,
+  ThemeStatePayload,
+  TabTypeOverride,
+  LayoutMode,
+  BrowserStatePayload,
+  UpdateInfoPayload
+} from '../common/types';
 
 const IPC = {
+  // Main -> Renderer
   TABS_STATE_UPDATE: 'tabs:state-update',
   THEME_UPDATE: 'theme:update',
   THEME_CHANGED: 'theme:changed',
   FULLSCREEN_UPDATE: 'window:fullscreen-update',
   ZOOM_UPDATE: 'zoom:update',
+
+  // Renderer -> Main
   TAB_CREATE: 'tabs:create',
   TAB_CLOSE: 'tabs:close',
   TAB_SELECT: 'tabs:select',
@@ -17,12 +29,32 @@ const IPC = {
   TAB_SET_TYPE: 'tabs:set-type',
   TAB_SHOW_CONTEXT_MENU: 'tabs:show-context-menu',
   GET_INITIAL_STATE: 'tabs:get-initial-state',
+
+  // Theme Sync
   THEME_GET: 'theme:get',
   GET_THEME: 'theme:get',
   SET_THEME: 'theme:set',
   ZOOM_GET: 'zoom:get',
   ZOOM_SET: 'zoom:set',
-  ZOOM_RESET: 'zoom:reset'
+  ZOOM_RESET: 'zoom:reset',
+
+  // Side Browser Split-View
+  BROWSER_TOGGLE: 'browser:toggle',
+  BROWSER_STATE_UPDATE: 'browser:state-update',
+  BROWSER_GET_STATE: 'browser:get-state',
+  BROWSER_SET_LAYOUT: 'browser:set-layout',
+  BROWSER_SET_SPLIT_RATIO: 'browser:set-split-ratio',
+  BROWSER_TAB_CREATE: 'browser:tab-create',
+  BROWSER_TAB_CLOSE: 'browser:tab-close',
+  BROWSER_TAB_SELECT: 'browser:tab-select',
+  BROWSER_NAVIGATE: 'browser:navigate',
+  BROWSER_BACK: 'browser:back',
+  BROWSER_FORWARD: 'browser:forward',
+  BROWSER_RELOAD: 'browser:reload',
+
+  // Updater & External
+  CHECK_FOR_UPDATES: 'app:check-for-updates',
+  OPEN_EXTERNAL: 'app:open-external'
 } as const;
 
 export interface ElectronTabAPI {
@@ -46,6 +78,28 @@ export interface ElectronTabAPI {
   setZoom: (zoomFactor: number) => Promise<number>;
   resetZoom: () => Promise<number>;
   onZoomUpdate: (callback: (zoomFactor: number) => void) => () => void;
+
+  // Side Browser API
+  toggleBrowser: () => void;
+  getBrowserState: () => Promise<BrowserStatePayload>;
+  setLayoutMode: (mode: LayoutMode) => void;
+  setSplitRatio: (ratio: number) => void;
+  createBrowserTab: (url?: string) => void;
+  closeBrowserTab: (tabId: string) => void;
+  selectBrowserTab: (tabId: string) => void;
+  navigateBrowser: (urlOrTabId: string, maybeUrl?: string) => void;
+  navigateBrowserBack: (tabId?: string) => void;
+  navigateBrowserForward: (tabId?: string) => void;
+  reloadBrowser: (tabId?: string) => void;
+  browserBack: (tabId?: string) => void;
+  browserForward: (tabId?: string) => void;
+  browserReload: (tabId?: string) => void;
+  onBrowserStateUpdate: (callback: (payload: BrowserStatePayload) => void) => () => void;
+
+  // Updater API & External
+  checkForUpdates: () => Promise<UpdateInfoPayload>;
+  openExternal: (url: string) => Promise<void>;
+  onOpenUpdateDialog: (callback: () => void) => () => void;
 }
 
 const api: ElectronTabAPI = {
@@ -157,6 +211,98 @@ const api: ElectronTabAPI = {
 
     return () => {
       ipcRenderer.removeListener(IPC.ZOOM_UPDATE, listener);
+    };
+  },
+
+  // Side Browser methods
+  toggleBrowser: () => {
+    ipcRenderer.send(IPC.BROWSER_TOGGLE);
+  },
+
+  getBrowserState: async (): Promise<BrowserStatePayload> => {
+    return ipcRenderer.invoke(IPC.BROWSER_GET_STATE);
+  },
+
+  setLayoutMode: (mode: LayoutMode) => {
+    ipcRenderer.send(IPC.BROWSER_SET_LAYOUT, mode);
+  },
+
+  setSplitRatio: (ratio: number) => {
+    ipcRenderer.send(IPC.BROWSER_SET_SPLIT_RATIO, ratio);
+  },
+
+  createBrowserTab: (url?: string) => {
+    ipcRenderer.send(IPC.BROWSER_TAB_CREATE, url);
+  },
+
+  closeBrowserTab: (tabId: string) => {
+    ipcRenderer.send(IPC.BROWSER_TAB_CLOSE, tabId);
+  },
+
+  selectBrowserTab: (tabId: string) => {
+    ipcRenderer.send(IPC.BROWSER_TAB_SELECT, tabId);
+  },
+
+  navigateBrowser: (urlOrTabId: string, maybeUrl?: string) => {
+    if (maybeUrl) {
+      ipcRenderer.send(IPC.BROWSER_NAVIGATE, { tabId: urlOrTabId, url: maybeUrl });
+    } else {
+      ipcRenderer.send(IPC.BROWSER_NAVIGATE, { url: urlOrTabId });
+    }
+  },
+
+  navigateBrowserBack: (tabId?: string) => {
+    ipcRenderer.send(IPC.BROWSER_BACK, tabId);
+  },
+
+  navigateBrowserForward: (tabId?: string) => {
+    ipcRenderer.send(IPC.BROWSER_FORWARD, tabId);
+  },
+
+  reloadBrowser: (tabId?: string) => {
+    ipcRenderer.send(IPC.BROWSER_RELOAD, tabId);
+  },
+
+  browserBack: (tabId?: string) => {
+    ipcRenderer.send(IPC.BROWSER_BACK, tabId);
+  },
+
+  browserForward: (tabId?: string) => {
+    ipcRenderer.send(IPC.BROWSER_FORWARD, tabId);
+  },
+
+  browserReload: (tabId?: string) => {
+    ipcRenderer.send(IPC.BROWSER_RELOAD, tabId);
+  },
+
+  onBrowserStateUpdate: (callback: (payload: BrowserStatePayload) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: BrowserStatePayload) => {
+      callback(payload);
+    };
+    ipcRenderer.on(IPC.BROWSER_STATE_UPDATE, listener);
+
+    return () => {
+      ipcRenderer.removeListener(IPC.BROWSER_STATE_UPDATE, listener);
+    };
+  },
+
+  // Updater methods
+  checkForUpdates: async (): Promise<UpdateInfoPayload> => {
+    return ipcRenderer.invoke(IPC.CHECK_FOR_UPDATES);
+  },
+
+  openExternal: async (url: string): Promise<void> => {
+    return ipcRenderer.invoke(IPC.OPEN_EXTERNAL, url);
+  },
+
+  onOpenUpdateDialog: (callback: () => void) => {
+    const listener = () => {
+      callback();
+    };
+    ipcRenderer.on('open-update-dialog', listener);
+
+    return () => {
+      ipcRenderer.removeListener('open-update-dialog', listener);
     };
   }
 };

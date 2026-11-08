@@ -61,4 +61,16 @@ if (indicatorRes.status !== 0) {
   process.exit(indicatorRes.status || 1);
 }
 
+// 5. Run stabilization gate verification
+console.log('--- Step 5: Windows Stabilization Gate Verification ---');
+const stabRes = spawnSync('node', [path.join(__dirname, 'verify-stabilization.js')], {
+  stdio: 'inherit',
+  env: process.env
+});
+
+if (stabRes.status !== 0) {
+  console.error('Stabilization gate verification failed with code', stabRes.status);
+  process.exit(stabRes.status || 1);
+}
+
 console.log('\nAll tests passed successfully!');

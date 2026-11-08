@@ -33,7 +33,7 @@ export class TabStateStore {
     try {
       const payload: TabsPersistedState = {
         version: this.CURRENT_VERSION,
-        tabs: state.tabs.map(t => ({
+        tabs: state.tabs.map((t: TabsPersistedState['tabs'][number]) => ({
           id: t.id,
           url: t.url,
           title: t.title,

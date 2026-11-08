@@ -1,23 +1,34 @@
-import { BrowserWindow, Menu, MenuItemConstructorOptions, app, ipcMain, nativeTheme } from 'electron';
+import { BrowserWindow, Menu, MenuItemConstructorOptions, app, ipcMain, nativeTheme, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { IPC_CHANNELS, ThemeMode, ThemeStatePayload, TabTypeOverride } from '../common/types';
+import {
+  IPC_CHANNELS,
+  ThemeMode,
+  ThemeStatePayload,
+  TabTypeOverride,
+  LayoutMode
+} from '../common/types';
 import { TabManager } from './tab-manager';
+import { SideBrowserManager } from './side-browser-manager';
 import { SettingsStore } from './settings-store';
+import { AppUpdater } from './auto-updater';
 
 export class WindowManager {
   private window: BrowserWindow | null = null;
   private tabManager: TabManager | null = null;
+  private sideBrowserManager: SideBrowserManager | null = null;
   private settingsStore: SettingsStore;
+  private appUpdater: AppUpdater;
 
   constructor() {
     this.settingsStore = new SettingsStore();
+    this.appUpdater = new AppUpdater();
   }
 
   public createWindow(): BrowserWindow {
     const isMac = process.platform === 'darwin';
     const savedSettings = this.settingsStore.load();
-    
+
     // Apply persisted theme mode
     nativeTheme.themeSource = savedSettings.themeMode;
     const isDark = nativeTheme.shouldUseDarkColors;
@@ -60,9 +71,21 @@ export class WindowManager {
     this.tabManager = new TabManager(this.window);
     this.tabManager.initZoomFactor(savedSettings.zoomFactor);
 
-    // Save zoom changes initiated by keyboard shortcuts or methods
+    // Save zoom changes
     this.tabManager.setOnZoomChange((zoomFactor: number) => {
       this.settingsStore.save({ zoomFactor });
+    });
+
+    // Side browser manager for split-view
+    this.sideBrowserManager = new SideBrowserManager(this.window);
+    this.sideBrowserManager.initSettings(
+      savedSettings.layoutMode || 'chat-only',
+      savedSettings.splitRatio || 0.5
+    );
+
+    this.sideBrowserManager.setOnLayoutChange((layoutMode, splitRatio) => {
+      this.settingsStore.save({ layoutMode, splitRatio });
+      this.updateLayoutBounds();
     });
 
     // Load Tab Bar UI
@@ -79,6 +102,10 @@ export class WindowManager {
       if (this.tabManager) {
         this.tabManager.restoreSavedStateOrInit();
       }
+      if (this.sideBrowserManager) {
+        this.sideBrowserManager.restoreSavedStateOrInit();
+      }
+      this.updateLayoutBounds();
       this.notifyThemeChanged();
     });
 
@@ -93,26 +120,69 @@ export class WindowManager {
     return this.tabManager;
   }
 
+  public getSideBrowserManager(): SideBrowserManager | null {
+    return this.sideBrowserManager;
+  }
+
+  public updateLayoutBounds(): void {
+    if (!this.window || this.window.isDestroyed()) return;
+    const mode = this.sideBrowserManager?.getLayoutMode() || 'chat-only';
+    const ratio = this.sideBrowserManager?.getSplitRatio() || 0.5;
+    const bounds = this.window.getContentBounds();
+    const totalW = bounds.width;
+    const totalH = bounds.height;
+    const contentH = Math.max(0, totalH - 44);
+
+    if (mode === 'chat-only') {
+      this.tabManager?.setActiveViewVisible(true);
+      this.tabManager?.updateActiveViewBounds({
+        x: 0,
+        y: 44,
+        width: totalW,
+        height: contentH
+      });
+      this.sideBrowserManager?.updateActiveViewAttachment();
+    } else if (mode === 'split') {
+      const splitX = Math.round(totalW * ratio);
+      this.tabManager?.setActiveViewVisible(true);
+      this.tabManager?.updateActiveViewBounds({
+        x: 0,
+        y: 44,
+        width: splitX,
+        height: contentH
+      });
+      this.sideBrowserManager?.updateActiveViewAttachment();
+    } else if (mode === 'browser-only') {
+      this.tabManager?.setActiveViewVisible(false);
+      this.sideBrowserManager?.updateActiveViewAttachment();
+    }
+  }
+
   private setupWindowEvents(): void {
     if (!this.window) return;
 
     this.window.on('resize', () => {
-      this.tabManager?.updateActiveViewBounds();
+      this.updateLayoutBounds();
     });
 
     this.window.on('enter-full-screen', () => {
-      this.tabManager?.updateActiveViewBounds();
+      this.updateLayoutBounds();
       this.window?.webContents.send(IPC_CHANNELS.FULLSCREEN_UPDATE, true);
     });
 
     this.window.on('leave-full-screen', () => {
-      this.tabManager?.updateActiveViewBounds();
+      this.updateLayoutBounds();
       this.window?.webContents.send(IPC_CHANNELS.FULLSCREEN_UPDATE, false);
+    });
+
+    this.window.on('close', () => {
+      this.tabManager?.flushPersistState();
     });
 
     this.window.on('closed', () => {
       this.window = null;
       this.tabManager = null;
+      this.sideBrowserManager = null;
     });
 
     // Keyboard shortcuts for tab bar window itself
@@ -179,7 +249,8 @@ export class WindowManager {
   private getThemePayload(): ThemeStatePayload {
     return {
       themeMode: (nativeTheme.themeSource as ThemeMode) || 'system',
-      isDark: nativeTheme.shouldUseDarkColors
+      isDark: nativeTheme.shouldUseDarkColors,
+      systemIsDark: nativeTheme.shouldUseDarkColors
     };
   }
 
@@ -283,6 +354,83 @@ export class WindowManager {
     ipcMain.on(IPC_CHANNELS.TAB_SHOW_CONTEXT_MENU, (_event, tabId: string) => {
       this.tabManager?.showTabContextMenu(tabId);
     });
+
+    // Side Browser IPC handlers (Gate H)
+    ipcMain.removeHandler(IPC_CHANNELS.BROWSER_GET_STATE);
+    ipcMain.handle(IPC_CHANNELS.BROWSER_GET_STATE, () => {
+      return this.sideBrowserManager?.getStatePayload() ?? {
+        tabs: [],
+        activeTabId: null,
+        layoutMode: 'chat-only',
+        splitRatio: 0.5
+      };
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.BROWSER_SET_LAYOUT);
+    ipcMain.on(IPC_CHANNELS.BROWSER_SET_LAYOUT, (_event, mode: LayoutMode) => {
+      this.sideBrowserManager?.setLayoutMode(mode);
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.BROWSER_SET_SPLIT_RATIO);
+    ipcMain.on(IPC_CHANNELS.BROWSER_SET_SPLIT_RATIO, (_event, ratio: number) => {
+      this.sideBrowserManager?.setSplitRatio(ratio);
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.BROWSER_TAB_CREATE);
+    ipcMain.on(IPC_CHANNELS.BROWSER_TAB_CREATE, (_event, url?: string) => {
+      this.sideBrowserManager?.createTab(url);
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.BROWSER_TAB_CLOSE);
+    ipcMain.on(IPC_CHANNELS.BROWSER_TAB_CLOSE, (_event, tabId: string) => {
+      this.sideBrowserManager?.closeTab(tabId);
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.BROWSER_TAB_SELECT);
+    ipcMain.on(IPC_CHANNELS.BROWSER_TAB_SELECT, (_event, tabId: string) => {
+      this.sideBrowserManager?.selectTab(tabId);
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.BROWSER_NAVIGATE);
+    ipcMain.on(IPC_CHANNELS.BROWSER_NAVIGATE, (_event, { tabId, url }: { tabId?: string; url: string }) => {
+      this.sideBrowserManager?.navigate(tabId, url);
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.BROWSER_BACK);
+    ipcMain.on(IPC_CHANNELS.BROWSER_BACK, (_event, tabId?: string) => {
+      this.sideBrowserManager?.goBack(tabId);
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.BROWSER_FORWARD);
+    ipcMain.on(IPC_CHANNELS.BROWSER_FORWARD, (_event, tabId?: string) => {
+      this.sideBrowserManager?.goForward(tabId);
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.BROWSER_RELOAD);
+    ipcMain.on(IPC_CHANNELS.BROWSER_RELOAD, (_event, tabId?: string) => {
+      this.sideBrowserManager?.reload(tabId);
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.BROWSER_TOGGLE);
+    ipcMain.on(IPC_CHANNELS.BROWSER_TOGGLE, () => {
+      const current = this.sideBrowserManager?.getLayoutMode() || 'chat-only';
+      const next: LayoutMode = current === 'chat-only' ? 'split' : 'chat-only';
+      this.sideBrowserManager?.setLayoutMode(next);
+    });
+
+    // Check for updates IPC handler (UX-004)
+    ipcMain.removeHandler(IPC_CHANNELS.CHECK_FOR_UPDATES);
+    ipcMain.handle(IPC_CHANNELS.CHECK_FOR_UPDATES, async () => {
+      return this.appUpdater.checkForUpdatesManually();
+    });
+
+    // Open external URL safely
+    ipcMain.removeHandler(IPC_CHANNELS.OPEN_EXTERNAL);
+    ipcMain.handle(IPC_CHANNELS.OPEN_EXTERNAL, async (_event, url: string) => {
+      if (/^https?:\/\//i.test(url)) {
+        return shell.openExternal(url);
+      }
+    });
   }
 
   private setupApplicationMenu(): void {
@@ -296,6 +444,13 @@ export class WindowManager {
               label: app.name,
               submenu: [
                 { role: 'about' as const },
+                { type: 'separator' as const },
+                {
+                  label: 'Check for Updates...',
+                  click: async () => {
+                    this.window?.webContents.send('open-update-dialog');
+                  }
+                },
                 { type: 'separator' as const },
                 { role: 'services' as const },
                 { type: 'separator' as const },
@@ -420,22 +575,28 @@ export class WindowManager {
             }
           },
           { type: 'separator' },
+          {
+            label: 'Toggle Side Browser',
+            accelerator: 'CmdOrCtrl+\\',
+            click: () => {
+              const current = this.sideBrowserManager?.getLayoutMode() || 'chat-only';
+              const next: LayoutMode = current === 'chat-only' ? 'split' : 'chat-only';
+              this.sideBrowserManager?.setLayoutMode(next);
+            }
+          },
+          { type: 'separator' },
           { role: 'togglefullscreen' as const }
         ]
       },
       {
-        label: 'Window',
+        label: 'Help',
         submenu: [
-          { role: 'minimize' as const },
-          { role: 'zoom' as const },
-          ...(isMac
-            ? [
-                { type: 'separator' as const },
-                { role: 'front' as const },
-                { type: 'separator' as const },
-                { role: 'window' as const }
-              ]
-            : [{ role: 'close' as const }])
+          {
+            label: 'Check for Updates...',
+            click: () => {
+              this.window?.webContents.send('open-update-dialog');
+            }
+          }
         ]
       }
     ];

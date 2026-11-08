@@ -24,7 +24,25 @@ assert.strictEqual(typeof IPC_CHANNELS.ZOOM_SET, 'string');
 assert.strictEqual(typeof IPC_CHANNELS.ZOOM_RESET, 'string');
 assert.strictEqual(typeof IPC_CHANNELS.TAB_SET_TYPE, 'string');
 assert.strictEqual(typeof IPC_CHANNELS.TAB_SHOW_CONTEXT_MENU, 'string');
-console.log('✔ IPC Channels (including Tab Type & Context Menu) are correctly defined.\n');
+
+// Side Browser IPC channels
+assert.strictEqual(typeof IPC_CHANNELS.BROWSER_TOGGLE, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.BROWSER_SET_LAYOUT, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.BROWSER_SET_SPLIT_RATIO, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.BROWSER_NAVIGATE, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.BROWSER_BACK, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.BROWSER_FORWARD, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.BROWSER_RELOAD, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.BROWSER_TAB_CREATE, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.BROWSER_TAB_CLOSE, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.BROWSER_TAB_SELECT, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.BROWSER_STATE_UPDATE, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.BROWSER_GET_STATE, 'string');
+assert.strictEqual(typeof IPC_CHANNELS.OPEN_EXTERNAL, 'string');
+
+// Auto Updater IPC channels
+assert.strictEqual(typeof IPC_CHANNELS.CHECK_FOR_UPDATES, 'string');
+console.log('✔ IPC Channels (including Side Browser & Updater) are correctly defined.\n');
 
 // Test 2: URL & Origin validation logic
 console.log('Test 2: Verifying Domain Allowlist logic...');
@@ -122,9 +140,15 @@ const mockContext = vm.createContext({
         contains: () => false,
         toggle: () => false
       },
-      setAttribute: () => {}
+      setAttribute: () => {},
+      style: {}
     }),
-    addEventListener: () => {}
+    addEventListener: () => {},
+    documentElement: {
+      style: {
+        setProperty: () => {}
+      }
+    }
   },
   console
 });
@@ -139,7 +163,6 @@ console.log('Test 5: Verifying Conversation Type resolution logic...');
 function resolveConversationType(url, override) {
   if (override === 'chat') return 'chat';
   if (override === 'work') return 'work';
-  // Automatic mode strictly defaults to 'unknown' without unsupported DOM/title scraping
   return 'unknown';
 }
 assert.strictEqual(resolveConversationType('https://chatgpt.com', 'chat'), 'chat');
@@ -160,8 +183,22 @@ assert.strictEqual(clampZoom(1.5), 1.5);
 assert.strictEqual(clampZoom(1.6), 1.5, 'Zoom must not exceed 150%');
 console.log('✔ Zoom clamping logic verified.\n');
 
-// Test 7: Platform icon assets verification
-console.log('Test 7: Verifying platform icon assets...');
+// Test 7: Image open handler routing (UX-002: no chat tab spawning for images)
+console.log('Test 7: Verifying Image Open Handler logic (UX-002)...');
+function isDirectImage(urlStr) {
+  return (
+    urlStr.includes('files.oaiusercontent.com') ||
+    urlStr.includes('blob:https://chatgpt.com') ||
+    /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(urlStr)
+  );
+}
+assert.strictEqual(isDirectImage('https://files.oaiusercontent.com/file-12345/image.png'), true);
+assert.strictEqual(isDirectImage('https://chatgpt.com/some/image.webp'), true);
+assert.strictEqual(isDirectImage('https://chatgpt.com/c/chat-uuid-here'), false);
+console.log('✔ Direct image routing logic correctly identifies asset URLs.\n');
+
+// Test 8: Platform icon assets verification
+console.log('Test 8: Verifying platform icon assets...');
 const assetsDir = path.join(__dirname, '../assets');
 assert(fs.existsSync(path.join(assetsDir, 'icon.ico')), 'Windows icon.ico must exist');
 assert(fs.existsSync(path.join(assetsDir, 'icon.icns')), 'macOS icon.icns must exist');

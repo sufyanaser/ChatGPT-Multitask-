@@ -3,6 +3,10 @@ import { WindowManager } from './window-manager';
 import { SessionManager } from './session-manager';
 import { AppUpdater } from './auto-updater';
 
+// Performance optimizations for Windows (GPU rasterization, zero-copy video/image buffers)
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+
 // Ensure single instance of the application
 const gotTheLock = app.requestSingleInstanceLock();
 
