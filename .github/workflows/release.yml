@@ -162,7 +162,7 @@ jobs:
           VERSION="${{ needs.validate-tag.outputs.version }}"
           test -f latest-mac.yml || { echo "latest-mac.yml missing"; exit 1; }
           grep -q "version: ${VERSION}" latest-mac.yml || { echo "latest-mac.yml version mismatch"; exit 1; }
-          grep -E '^\s+- url:' latest-mac.yml | sed -E 's/^\s+- url:\s*//' | while read -r f; do
+          sed -nE 's/^[[:space:]]*-[[:space:]]*url:[[:space:]]*//p' latest-mac.yml | while read -r f; do
             test -f "$f" || { echo "latest-mac.yml references missing file: $f"; exit 1; }
           done
 
