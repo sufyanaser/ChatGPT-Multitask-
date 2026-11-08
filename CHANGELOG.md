@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Split-view divider was never visible: the renderer toggled an inline
+  `display` that the global `.hidden { display: none !important }` rule
+  overrode. Visibility is now a class toggle.
+- Split divider drag stalled as soon as the pointer crossed onto a
+  `WebContentsView`. Views are detached for the duration of the drag and
+  re-attached on release; the chat and browser views are separated by a 6px
+  gutter so the divider is hittable.
+- Update popover was covered by the ChatGPT view below the tab strip. While the
+  popover is open, the views reserve its horizontal strip; position and update
+  state logic are unchanged.
+- Right-click context menu was absent in ChatGPT and side-browser views.
+  Links, images, editable fields and text selection now offer the matching
+  actions. Keyboard shortcuts are unchanged.
+
 ## [0.2.0] - 2026-11-08
 
 ### Added

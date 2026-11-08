@@ -49,6 +49,9 @@ const IPC = {
   BROWSER_GET_STATE: 'browser:get-state',
   BROWSER_SET_LAYOUT: 'browser:set-layout',
   BROWSER_SET_SPLIT_RATIO: 'browser:set-split-ratio',
+  BROWSER_SPLIT_DRAG_START: 'browser:split-drag-start',
+  BROWSER_SPLIT_DRAG_END: 'browser:split-drag-end',
+  UI_OVERLAY_RESERVE: 'ui:overlay-reserve',
   BROWSER_TAB_CREATE: 'browser:tab-create',
   BROWSER_TAB_CLOSE: 'browser:tab-close',
   BROWSER_TAB_SELECT: 'browser:tab-select',
@@ -98,6 +101,9 @@ export interface ElectronTabAPI {
   getBrowserState: () => Promise<BrowserStatePayload>;
   setLayoutMode: (mode: LayoutMode) => void;
   setSplitRatio: (ratio: number) => void;
+  splitDragStart: () => void;
+  splitDragEnd: () => void;
+  setOverlayReserve: (widthPx: number) => void;
   createBrowserTab: (url?: string) => void;
   closeBrowserTab: (tabId: string) => void;
   selectBrowserTab: (tabId: string) => void;
@@ -253,6 +259,20 @@ const api: ElectronTabAPI = {
 
   setSplitRatio: (ratio: number) => {
     ipcRenderer.send(IPC.BROWSER_SET_SPLIT_RATIO, ratio);
+  },
+
+  splitDragStart: () => {
+    ipcRenderer.send(IPC.BROWSER_SPLIT_DRAG_START);
+  },
+
+  splitDragEnd: () => {
+    ipcRenderer.send(IPC.BROWSER_SPLIT_DRAG_END);
+  },
+
+  // Width of the right-hand strip the update popover occupies. The views shrink
+  // by this amount so the root-level popover is not covered by a WebContentsView.
+  setOverlayReserve: (widthPx: number) => {
+    ipcRenderer.send(IPC.UI_OVERLAY_RESERVE, widthPx);
   },
 
   createBrowserTab: (url?: string) => {

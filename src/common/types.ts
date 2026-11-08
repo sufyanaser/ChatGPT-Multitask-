@@ -120,6 +120,12 @@ export interface UpdateInfoPayload {
   downloadProgress?: UpdateDownloadProgress;
 }
 
+/**
+ * Transparent gap between the chat and side-browser WebContentsViews. The
+ * renderer divider lives inside this gap, so it is never covered by a view.
+ */
+export const SPLIT_GUTTER_PX = 6;
+
 export const IPC_CHANNELS = {
   // Main -> Renderer
   TABS_STATE_UPDATE: 'tabs:state-update',
@@ -156,6 +162,9 @@ export const IPC_CHANNELS = {
   BROWSER_GET_STATE: 'browser:get-state',
   BROWSER_SET_LAYOUT: 'browser:set-layout',
   BROWSER_SET_SPLIT_RATIO: 'browser:set-split-ratio',
+  BROWSER_SPLIT_DRAG_START: 'browser:split-drag-start',
+  BROWSER_SPLIT_DRAG_END: 'browser:split-drag-end',
+  UI_OVERLAY_RESERVE: 'ui:overlay-reserve',
   BROWSER_TAB_CREATE: 'browser:tab-create',
   BROWSER_TAB_CLOSE: 'browser:tab-close',
   BROWSER_TAB_SELECT: 'browser:tab-select',

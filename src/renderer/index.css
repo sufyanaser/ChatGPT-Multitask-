@@ -479,9 +479,11 @@ body.theme-dark .tab-type-work {
   position: absolute;
   top: 44px;
   bottom: 0;
-  width: 5px;
+  /* Must equal SPLIT_GUTTER_PX (src/common/types.ts): the uncovered gutter
+     between the chat and browser WebContentsViews. */
+  width: 6px;
   left: calc(var(--split-x, 50%));
-  margin-left: -2px;
+  margin-left: -3px;
   background-color: transparent;
   cursor: col-resize;
   z-index: 150;

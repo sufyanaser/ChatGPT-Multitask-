@@ -6,15 +6,20 @@ import {
   ThemeMode,
   ThemeStatePayload,
   TabTypeOverride,
-  LayoutMode
+  LayoutMode,
+  SPLIT_GUTTER_PX
 } from '../common/types';
 import { TabManager } from './tab-manager';
 import { SideBrowserManager } from './side-browser-manager';
 import { SettingsStore } from './settings-store';
 import { AppUpdater } from './auto-updater';
 
+const MIN_CONTENT_WIDTH_PX = 240;
+
 export class WindowManager {
   private window: BrowserWindow | null = null;
+  private splitDragging = false;
+  private overlayReserveWidth = 0;
   private tabManager: TabManager | null = null;
   private sideBrowserManager: SideBrowserManager | null = null;
   private settingsStore: SettingsStore;
@@ -134,6 +139,13 @@ export class WindowManager {
     return this.sideBrowserManager;
   }
 
+  /**
+   * Single layout authority for the tab bar, chat view and side browser.
+   * - Views are separated by SPLIT_GUTTER_PX so the renderer divider is hittable.
+   * - While the divider is dragged, all WebContentsViews are detached so the
+   *   root renderer receives pointer events for the whole window.
+   * - Root-level overlays (update popover) reserve a right-edge strip.
+   */
   public updateLayoutBounds(): void {
     if (!this.window || this.window.isDestroyed()) return;
     const mode = this.sideBrowserManager?.getLayoutMode() || 'chat-only';
@@ -142,30 +154,47 @@ export class WindowManager {
     const totalW = bounds.width;
     const totalH = bounds.height;
     const contentH = Math.max(0, totalH - 44);
+    const reserved = Math.min(this.overlayReserveWidth, Math.max(0, totalW - MIN_CONTENT_WIDTH_PX));
+
+    const workW = Math.max(0, totalW - reserved);
+    this.sideBrowserManager?.setLayoutConstraints(reserved, this.splitDragging);
+
+    if (this.splitDragging || mode === 'browser-only') {
+      this.tabManager?.setActiveViewVisible(false);
+      this.sideBrowserManager?.updateActiveViewAttachment();
+      return;
+    }
 
     if (mode === 'chat-only') {
       this.tabManager?.setActiveViewVisible(true);
       this.tabManager?.updateActiveViewBounds({
         x: 0,
         y: 44,
-        width: totalW,
+        width: workW,
         height: contentH
       });
-      this.sideBrowserManager?.updateActiveViewAttachment();
     } else if (mode === 'split') {
-      const splitX = Math.round(totalW * ratio);
+      const splitX = Math.round(workW * ratio);
       this.tabManager?.setActiveViewVisible(true);
       this.tabManager?.updateActiveViewBounds({
         x: 0,
         y: 44,
-        width: splitX,
+        width: Math.max(0, splitX - Math.ceil(SPLIT_GUTTER_PX / 2)),
         height: contentH
       });
-      this.sideBrowserManager?.updateActiveViewAttachment();
-    } else if (mode === 'browser-only') {
-      this.tabManager?.setActiveViewVisible(false);
-      this.sideBrowserManager?.updateActiveViewAttachment();
     }
+    this.sideBrowserManager?.updateActiveViewAttachment();
+  }
+
+  private beginSplitDrag(): void {
+    this.splitDragging = true;
+    this.updateLayoutBounds();
+  }
+
+  private endSplitDrag(): void {
+    if (!this.splitDragging) return;
+    this.splitDragging = false;
+    this.updateLayoutBounds();
   }
 
   private setupWindowEvents(): void {
@@ -406,6 +435,24 @@ export class WindowManager {
     ipcMain.removeAllListeners(IPC_CHANNELS.BROWSER_SET_SPLIT_RATIO);
     ipcMain.on(IPC_CHANNELS.BROWSER_SET_SPLIT_RATIO, (_event, ratio: number) => {
       this.sideBrowserManager?.setSplitRatio(ratio);
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.BROWSER_SPLIT_DRAG_START);
+    ipcMain.on(IPC_CHANNELS.BROWSER_SPLIT_DRAG_START, () => {
+      this.beginSplitDrag();
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.BROWSER_SPLIT_DRAG_END);
+    ipcMain.on(IPC_CHANNELS.BROWSER_SPLIT_DRAG_END, () => {
+      this.endSplitDrag();
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.UI_OVERLAY_RESERVE);
+    ipcMain.on(IPC_CHANNELS.UI_OVERLAY_RESERVE, (_event, widthPx: unknown) => {
+      const next = typeof widthPx === 'number' && Number.isFinite(widthPx) ? Math.max(0, widthPx) : 0;
+      if (next === this.overlayReserveWidth) return;
+      this.overlayReserveWidth = next;
+      this.updateLayoutBounds();
     });
 
     ipcMain.removeAllListeners(IPC_CHANNELS.BROWSER_TAB_CREATE);

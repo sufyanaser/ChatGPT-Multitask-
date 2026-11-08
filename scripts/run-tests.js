@@ -115,4 +115,24 @@ if (m3Res.status !== 0) {
   process.exit(m3Res.status || 1);
 }
 
+// 9. WebContentsView layering: split divider, popover reserve, context menu (OS-level input)
+// Driven by xdotool (X11). On Windows/macOS this is covered by the manual
+// Windows runtime checklist, so the step is reported as skipped rather than passed.
+console.log('--- Step 9: WebContentsView Layering Runtime Verification ---');
+const hasXdotool = process.platform === 'linux' &&
+  spawnSync('xdotool', ['version'], { stdio: 'ignore' }).status === 0;
+if (!hasXdotool) {
+  console.log('SKIPPED: requires Linux with xdotool and an X display (xvfb-run -a).');
+} else {
+  const layeringRes = spawnSync(electronBin, ['--no-sandbox', '--disable-gpu', path.join(__dirname, 'verify-layering-runtime.js')], {
+    stdio: 'inherit',
+    env: process.env
+  });
+
+  if (layeringRes.status !== 0) {
+    console.error('WebContentsView layering verification failed with code', layeringRes.status);
+    process.exit(layeringRes.status || 1);
+  }
+}
+
 console.log('\nAll tests passed successfully!');

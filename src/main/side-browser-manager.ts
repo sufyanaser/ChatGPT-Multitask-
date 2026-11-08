@@ -8,8 +8,10 @@ import {
   BrowserStatePayload,
   BrowserPersistedState,
   LayoutMode,
-  IPC_CHANNELS
+  IPC_CHANNELS,
+  SPLIT_GUTTER_PX
 } from '../common/types';
+import { attachWebContextMenu } from './web-context-menu';
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
 const BROWSER_HEADER_HEIGHT = 38;
@@ -57,6 +59,11 @@ export class SideBrowserManager {
   private persistTimer: NodeJS.Timeout | null = null;
   private onLayoutChangeCallback?: (mode: LayoutMode, ratio: number) => void;
   private isDestroyed = false;
+  // Right-edge strip reserved for root-level overlays (update popover).
+  private reservedRightPx = 0;
+  // True while the split divider is being dragged: the view is detached so the
+  // renderer receives the pointer events for the whole window.
+  private suspended = false;
 
   constructor(window: BrowserWindow) {
     this.window = window;
@@ -290,7 +297,7 @@ export class SideBrowserManager {
     const active = this.getActiveTab();
     if (!active || this.window.isDestroyed()) return;
 
-    const shouldAttach = this.layoutMode === 'split' || this.layoutMode === 'browser-only';
+    const shouldAttach = !this.suspended && (this.layoutMode === 'split' || this.layoutMode === 'browser-only');
     const isAttached = this.window.contentView.children.includes(active.view);
 
     if (shouldAttach) {
@@ -327,23 +334,39 @@ export class SideBrowserManager {
     const totalH = bounds.height;
     const contentH = Math.max(0, totalH - TAB_BAR_HEIGHT - BROWSER_HEADER_HEIGHT);
 
+    // Workspace excludes the overlay strip; split ratio applies to the workspace.
+    const workW = Math.max(0, totalW - this.reservedRightPx);
+
     if (this.layoutMode === 'browser-only') {
       active.view.setBounds({
         x: 0,
         y: TAB_BAR_HEIGHT + BROWSER_HEADER_HEIGHT,
-        width: totalW,
+        width: workW,
         height: contentH
       });
     } else if (this.layoutMode === 'split') {
-      const splitX = Math.round(totalW * this.splitRatio);
-      const browserW = Math.max(0, totalW - splitX);
+      // Browser starts half a gutter right of the split line; the gutter itself
+      // stays uncovered so the renderer divider can receive the pointer.
+      const splitX = Math.round(workW * this.splitRatio);
+      const x = splitX + Math.ceil(SPLIT_GUTTER_PX / 2);
+      const browserW = Math.max(0, workW - x);
       active.view.setBounds({
-        x: splitX,
+        x,
         y: TAB_BAR_HEIGHT + BROWSER_HEADER_HEIGHT,
         width: browserW,
         height: contentH
       });
     }
+  }
+
+  /**
+   * Applied by WindowManager on every layout pass. Changing `suspended` detaches
+   * or re-attaches the active browser view without touching its page state.
+   */
+  public setLayoutConstraints(reservedRightPx: number, suspended: boolean): void {
+    this.reservedRightPx = Math.max(0, Math.round(reservedRightPx));
+    this.suspended = suspended;
+    this.updateActiveViewAttachment();
   }
 
   public getStatePayload(): BrowserStatePayload {
@@ -392,6 +415,11 @@ export class SideBrowserManager {
 
   private setupViewListeners(tab: ManagedBrowserTab): void {
     const wc = tab.view.webContents;
+
+    attachWebContextMenu(wc, {
+      getWindow: () => (this.window.isDestroyed() ? null : this.window),
+      openLinkInNewTab: (url) => this.createTab(url, true)
+    });
 
     wc.on('will-navigate', (event, url) => {
       if (!isHttpUrl(url)) {

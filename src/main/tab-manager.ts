@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { TabItem, TabStatePayload, IPC_CHANNELS, ConversationType, TabTypeOverride } from '../common/types';
 import { SessionManager } from './session-manager';
 import { TabStateStore } from './tab-state-store';
+import { attachWebContextMenu } from './web-context-menu';
 
 export const TAB_BAR_HEIGHT = 44;
 const DEFAULT_URL = 'https://chatgpt.com';
@@ -650,6 +651,17 @@ export class TabManager {
 
   private setupViewListeners(tab: ManagedTab): void {
     const wc = tab.view.webContents;
+
+    attachWebContextMenu(wc, {
+      getWindow: () => (this.window.isDestroyed() ? null : this.window),
+      openLinkInNewTab: (url) => {
+        if (this.sessionManager.isUrlAllowed(url)) {
+          this.createTab(url, true);
+        } else {
+          this.openExternalSafely(url);
+        }
+      }
+    });
 
     // Strict navigation control
     wc.on('will-navigate', (event, url) => {
