@@ -22,7 +22,8 @@ export class WindowManager {
 
   constructor() {
     this.settingsStore = new SettingsStore();
-    this.appUpdater = new AppUpdater();
+    // electron-updater registers process-wide listeners, so the updater is shared.
+    this.appUpdater = AppUpdater.getInstance();
   }
 
   public createWindow(): BrowserWindow {
@@ -68,6 +69,8 @@ export class WindowManager {
       this.window.setMenuBarVisibility(false);
     }
 
+    this.appUpdater.setMainWindow(this.window);
+
     this.tabManager = new TabManager(this.window);
     this.tabManager.initZoomFactor(savedSettings.zoomFactor);
 
@@ -86,6 +89,13 @@ export class WindowManager {
     this.sideBrowserManager.setOnLayoutChange((layoutMode, splitRatio) => {
       this.settingsStore.save({ layoutMode, splitRatio });
       this.updateLayoutBounds();
+    });
+
+    // Persist tabs/side-browser state before an auto-update restart, so user
+    // data and open conversations survive the upgrade.
+    this.appUpdater.setBeforeQuitAndInstall(() => {
+      this.tabManager?.flushPersistState();
+      this.sideBrowserManager?.flushPersistState();
     });
 
     // Load Tab Bar UI
@@ -177,12 +187,34 @@ export class WindowManager {
 
     this.window.on('close', () => {
       this.tabManager?.flushPersistState();
+      this.sideBrowserManager?.flushPersistState();
     });
 
     this.window.on('closed', () => {
+      this.appUpdater.setMainWindow(null);
+      this.tabManager?.destroy();
+      this.sideBrowserManager?.destroy();
       this.window = null;
       this.tabManager = null;
       this.sideBrowserManager = null;
+    });
+
+    // The tab bar shell only ever renders local application content. Block any
+    // attempt to navigate it away or to spawn additional BrowserWindows.
+    this.window.webContents.setWindowOpenHandler(({ url }) => {
+      if (/^https?:\/\//i.test(url)) {
+        shell.openExternal(url);
+      }
+      return { action: 'deny' };
+    });
+
+    this.window.webContents.on('will-navigate', (event, url) => {
+      if (!/^file:\/\//i.test(url)) {
+        event.preventDefault();
+        if (/^https?:\/\//i.test(url)) {
+          shell.openExternal(url);
+        }
+      }
     });
 
     // Keyboard shortcuts for tab bar window itself
@@ -418,10 +450,15 @@ export class WindowManager {
       this.sideBrowserManager?.setLayoutMode(next);
     });
 
-    // Check for updates IPC handler (UX-004)
+    // Check for updates IPC handler (UX-008)
     ipcMain.removeHandler(IPC_CHANNELS.CHECK_FOR_UPDATES);
     ipcMain.handle(IPC_CHANNELS.CHECK_FOR_UPDATES, async () => {
       return this.appUpdater.checkForUpdatesManually();
+    });
+
+    ipcMain.removeHandler(IPC_CHANNELS.GET_APP_VERSION);
+    ipcMain.handle(IPC_CHANNELS.GET_APP_VERSION, () => {
+      return app.getVersion();
     });
 
     // Open external URL safely
@@ -430,6 +467,24 @@ export class WindowManager {
       if (/^https?:\/\//i.test(url)) {
         return shell.openExternal(url);
       }
+    });
+
+    // Start download IPC handler (supports START_DOWNLOAD / UPDATE_START_DOWNLOAD)
+    ipcMain.removeHandler(IPC_CHANNELS.START_DOWNLOAD);
+    ipcMain.handle(IPC_CHANNELS.START_DOWNLOAD, async () => {
+      return this.appUpdater.startDownload();
+    });
+
+    // Cancel download IPC listener (supports CANCEL_DOWNLOAD / UPDATE_CANCEL_DOWNLOAD)
+    ipcMain.removeAllListeners(IPC_CHANNELS.CANCEL_DOWNLOAD);
+    ipcMain.on(IPC_CHANNELS.CANCEL_DOWNLOAD, () => {
+      this.appUpdater.cancelDownload();
+    });
+
+    // Quit and install IPC listener (supports QUIT_AND_INSTALL / UPDATE_QUIT_AND_INSTALL)
+    ipcMain.removeAllListeners(IPC_CHANNELS.QUIT_AND_INSTALL);
+    ipcMain.on(IPC_CHANNELS.QUIT_AND_INSTALL, () => {
+      this.appUpdater.quitAndInstall();
     });
   }
 
@@ -448,7 +503,7 @@ export class WindowManager {
                 {
                   label: 'Check for Updates...',
                   click: async () => {
-                    this.window?.webContents.send('open-update-dialog');
+                    this.window?.webContents.send(IPC_CHANNELS.OPEN_UPDATE_DIALOG);
                   }
                 },
                 { type: 'separator' as const },
@@ -594,7 +649,7 @@ export class WindowManager {
           {
             label: 'Check for Updates...',
             click: () => {
-              this.window?.webContents.send('open-update-dialog');
+              this.window?.webContents.send(IPC_CHANNELS.OPEN_UPDATE_DIALOG);
             }
           }
         ]

@@ -18,6 +18,9 @@ yarn-debug.log*
 yarn-error.log*
 .system_generated/
 
+# Local agent evidence and scratch reports (never part of a release)
+.agents/
+
 # Environment and secrets
 .env
 .env.local

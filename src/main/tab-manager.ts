@@ -28,6 +28,11 @@ export const RTL_SCOPED_CSS = `
   padding-right: 24px !important;
   direction: rtl !important;
 }
+.markdown[dir="ltr"] ul, .markdown[dir="ltr"] ol {
+  padding-right: 0 !important;
+  padding-left: 24px !important;
+  direction: ltr !important;
+}
 .markdown[dir="rtl"] table th, .markdown[dir="rtl"] table td {
   text-align: right;
 }
@@ -42,13 +47,21 @@ export const RTL_SCOPED_CSS = `
   direction: ltr !important;
   display: inline-block;
 }
+/* Mathematical expressions are always LTR, even inside Arabic turns */
+.markdown .katex, .markdown .katex-display, .markdown math {
+  direction: ltr !important;
+  unicode-bidi: isolate !important;
+  text-align: left !important;
+}
 /* Paragraph & heading level direction for mixed turns */
-.markdown p[dir="rtl"], .markdown h1[dir="rtl"], .markdown h2[dir="rtl"], .markdown h3[dir="rtl"], .markdown h4[dir="rtl"], .markdown h5[dir="rtl"], .markdown h6[dir="rtl"] {
+.markdown p[dir="rtl"], .markdown h1[dir="rtl"], .markdown h2[dir="rtl"], .markdown h3[dir="rtl"], .markdown h4[dir="rtl"], .markdown h5[dir="rtl"], .markdown h6[dir="rtl"],
+.markdown li[dir="rtl"], .markdown blockquote[dir="rtl"], .markdown th[dir="rtl"], .markdown td[dir="rtl"] {
   direction: rtl !important;
   text-align: right !important;
   unicode-bidi: isolate !important;
 }
-.markdown p[dir="ltr"], .markdown h1[dir="ltr"], .markdown h2[dir="ltr"], .markdown h3[dir="ltr"], .markdown h4[dir="ltr"], .markdown h5[dir="ltr"], .markdown h6[dir="ltr"] {
+.markdown p[dir="ltr"], .markdown h1[dir="ltr"], .markdown h2[dir="ltr"], .markdown h3[dir="ltr"], .markdown h4[dir="ltr"], .markdown h5[dir="ltr"], .markdown h6[dir="ltr"],
+.markdown li[dir="ltr"], .markdown blockquote[dir="ltr"], .markdown th[dir="ltr"], .markdown td[dir="ltr"] {
   direction: ltr !important;
   text-align: left !important;
   unicode-bidi: isolate !important;
@@ -57,50 +70,88 @@ export const RTL_SCOPED_CSS = `
 
 /**
  * P0 Lightweight Idempotent MutationObserver Script.
- * Ensures dynamically rendered and streamed assistant messages receive accurate directionality.
+ * Ensures dynamically rendered and streamed assistant messages receive accurate
+ * directionality without being skewed by LTR code samples inside Arabic answers.
  */
 export const RTL_OBSERVER_SCRIPT = `
 (function() {
   if (window.__chatgptRtlInstalled) return;
   window.__chatgptRtlInstalled = true;
 
-  const ARABIC_REGEX = /[\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF\\uFB50-\\uFDFF\\uFE70-\\uFEFF]/g;
-  const LATIN_REGEX = /[A-Za-z]/g;
+  var ARABIC_REGEX = /[\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF\\uFB50-\\uFDFF\\uFE70-\\uFEFF]/g;
+  var LATIN_REGEX = /[A-Za-z]/g;
+  var SKIP_SELECTOR = 'pre, code, script, style, svg, .katex, .katex-display';
+  var SAMPLE_LIMIT = 400;
+
+  function sampleText(el) {
+    var text = '';
+    try {
+      var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(node) {
+          var parent = node.parentElement;
+          if (!parent || parent.closest(SKIP_SELECTOR)) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      });
+      var node;
+      while ((node = walker.nextNode())) {
+        text += node.nodeValue;
+        if (text.length >= SAMPLE_LIMIT) break;
+      }
+    } catch (e) {
+      text = (el.textContent || '');
+    }
+    return text.slice(0, SAMPLE_LIMIT);
+  }
 
   function detectDir(text) {
     if (!text) return null;
-    const clean = text.trim();
+    var clean = text.trim();
     if (!clean) return null;
-    const arCount = (clean.match(ARABIC_REGEX) || []).length;
+    var arCount = (clean.match(ARABIC_REGEX) || []).length;
     if (arCount === 0) return 'ltr';
-    const enCount = (clean.match(LATIN_REGEX) || []).length;
+    var enCount = (clean.match(LATIN_REGEX) || []).length;
     return (arCount >= enCount * 0.3) ? 'rtl' : 'ltr';
   }
 
-  function applyRtl() {
-    const markdowns = document.querySelectorAll('.markdown, [data-message-author-role="assistant"] .prose');
-    for (let i = 0; i < markdowns.length; i++) {
-      const md = markdowns[i];
-      const dir = detectDir(md.textContent);
-      if (dir && md.getAttribute('dir') !== dir) {
-        md.setAttribute('dir', dir);
-      }
+  function applyDir(el) {
+    if (!el || el.nodeType !== 1) return;
+    var dir = detectDir(sampleText(el));
+    if (dir && el.getAttribute('dir') !== dir) {
+      el.setAttribute('dir', dir);
+    }
+  }
 
-      // Check direct block children for mixed-turn resilience
-      const blocks = md.querySelectorAll('p, h1, h2, h3, h4, h5, h6');
-      for (let j = 0; j < blocks.length; j++) {
-        const b = blocks[j];
-        const bDir = detectDir(b.textContent);
-        if (bDir && b.getAttribute('dir') !== bDir) {
-          b.setAttribute('dir', bDir);
-        }
+  function applyRtl() {
+    var markdowns = document.querySelectorAll('.markdown, [data-message-author-role="assistant"] .prose');
+    for (var i = 0; i < markdowns.length; i++) {
+      var md = markdowns[i];
+      applyDir(md);
+      var blocks = md.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, td, th');
+      for (var j = 0; j < blocks.length; j++) {
+        applyDir(blocks[j]);
       }
     }
   }
 
+  var scheduled = false;
+  function schedule() {
+    if (scheduled) return;
+    scheduled = true;
+    var run = function() {
+      scheduled = false;
+      try { applyRtl(); } catch (e) { /* never break the host page */ }
+    };
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(run);
+    } else {
+      setTimeout(run, 16);
+    }
+  }
+
   applyRtl();
-  const observer = new MutationObserver(() => applyRtl());
-  const target = document.body || document.documentElement;
+  var observer = new MutationObserver(schedule);
+  var target = document.body || document.documentElement;
   if (target) observer.observe(target, { childList: true, subtree: true, characterData: true });
 })();
 `;
@@ -304,6 +355,7 @@ export class TabManager {
 
     // Load URL
     view.webContents.loadURL(url).catch(err => {
+      if (this.isNavigationCanceled(err)) return;
       console.warn(`[TabManager] Failed to load URL ${url}:`, err);
     });
 
@@ -358,15 +410,10 @@ export class TabManager {
 
     const tabToClose = this.tabs[index];
 
-    // Detach and destroy view
-    try {
-      if (this.activeTabId === tabId) {
-        this.window.contentView.removeChildView(tabToClose.view);
-      }
-      (tabToClose.view.webContents as any).close?.();
-    } catch (err) {
-      console.warn('[TabManager] Error closing webContents:', err);
-    }
+    // Detach and destroy the view. Closing a WebContents that is still loading
+    // aborts its navigation, which surfaces as ERR_FAILED/ERR_ABORTED — that is
+    // expected teardown, not a failure.
+    this.destroyTabView(tabToClose);
 
     this.tabs.splice(index, 1);
 
@@ -386,6 +433,70 @@ export class TabManager {
 
     this.notifyStateChanged();
     this.persistState();
+  }
+
+  /**
+   * Tears down every tab and leaves the manager empty. Called after the host
+   * window has closed so restored tab navigations do not abort noisily.
+   */
+  public destroy(): void {
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer);
+      this.persistTimer = null;
+    }
+    const tabs = this.tabs;
+    this.tabs = [];
+    this.activeTabId = null;
+    for (const tab of tabs) {
+      this.destroyTabView(tab);
+    }
+  }
+
+  private destroyTabView(tab: ManagedTab): void {
+    try {
+      this.window.contentView.removeChildView(tab.view);
+    } catch (err) {
+      // Window is already gone during shutdown.
+    }
+    try {
+      const wc = tab.view.webContents;
+      if (!wc.isDestroyed()) {
+        wc.close({ waitForBeforeUnload: false });
+      }
+    } catch (err) {
+      console.warn('[TabManager] Error closing webContents:', err);
+    }
+  }
+
+  private isNavigationCanceled(err: any): boolean {
+    const code = err?.code || err?.errno || '';
+    const message = err?.message || '';
+    return (
+      code === 'ERR_ABORTED' ||
+      code === 'ERR_FAILED' ||
+      message.includes('ERR_ABORTED') ||
+      message.includes('ERR_FAILED') ||
+      message.includes('Object has been destroyed')
+    );
+  }
+
+  private isHttpUrl(url: string): boolean {
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+
+  private openExternalSafely(url: string): void {
+    if (!this.isHttpUrl(url)) {
+      console.warn(`[TabManager] Blocked external navigation to unsupported scheme: ${url}`);
+      return;
+    }
+    shell.openExternal(url).catch(err => {
+      console.warn(`[TabManager] Failed to open external URL: ${url}`, err);
+    });
   }
 
   public reorderTabs(sourceIndex: number, targetIndex: number): void {
@@ -544,7 +655,7 @@ export class TabManager {
     wc.on('will-navigate', (event, url) => {
       if (!this.sessionManager.isUrlAllowed(url)) {
         event.preventDefault();
-        shell.openExternal(url);
+        this.openExternalSafely(url);
       }
     });
 
@@ -557,7 +668,7 @@ export class TabManager {
 
       if (isImageAsset) {
         // Open image asset in external default viewer without spawning a heavy conversation tab
-        shell.openExternal(url);
+        this.openExternalSafely(url);
         return { action: 'deny' };
       }
 
@@ -565,7 +676,7 @@ export class TabManager {
         this.createTab(url, true);
         return { action: 'deny' };
       }
-      shell.openExternal(url);
+      this.openExternalSafely(url);
       return { action: 'deny' };
     });
 

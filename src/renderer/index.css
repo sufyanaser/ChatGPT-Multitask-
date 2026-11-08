@@ -1,5 +1,11 @@
 /* ChatGPT Multitask — Modern Cross-Platform Tab Bar Design */
 
+/* Single source of truth for element visibility. Component rules must not rely
+   on their own .hidden definition because buttons and panels share this utility. */
+.hidden {
+  display: none !important;
+}
+
 :root {
   /* Default Dark Mode (ChatGPT Modern Palette) */
   --bg-bar: #212121;
@@ -658,166 +664,321 @@ body.theme-dark .tab-type-work {
 }
 
 /* ==========================================================================
-   Software Update Modal (UX-004)
+   UX-008: Native Anchored Update Popover (Features F05, F06)
    ========================================================================== */
 
-.modal-backdrop {
+.update-popover {
   position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(2px);
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: fadeIn 0.15s ease;
-}
-
-.modal-backdrop.hidden {
-  display: none;
-}
-
-.modal-card {
-  width: 360px;
-  max-width: 90vw;
+  width: 320px;
+  max-width: calc(100vw - 16px);
+  max-height: min(420px, calc(100vh - 60px));
+  border-radius: 12px;
   background: var(--bg-tab-active);
   border: 1px solid var(--tab-active-border);
-  border-radius: 10px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.12);
+  z-index: 1000;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: popoverFadeIn 0.15s ease-out;
+  box-sizing: border-box;
 }
 
-.modal-header {
+.update-popover.hidden {
+  display: none !important;
+}
+
+@keyframes popoverFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.update-popover-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border-bar);
+  background: var(--bg-tab-active);
 }
 
-.modal-title {
-  font-size: 13.5px;
+.update-popover-title-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.update-popover-icon {
+  color: var(--accent-color);
+  flex-shrink: 0;
+}
+
+.update-popover-title {
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.modal-close-btn {
-  font-size: 18px;
+.update-version-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  background: var(--bg-tab-hover);
+  border: 1px solid var(--border-bar);
+  color: var(--text-secondary);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.update-popover-close-btn {
+  font-size: 17px;
   line-height: 1;
   border: none;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
   border-radius: 4px;
-  padding: 2px 6px;
+  padding: 2px 5px;
+  transition: color 0.15s ease, background-color 0.15s ease;
 }
 
-.modal-close-btn:hover {
+.update-popover-close-btn:hover {
   color: var(--text-primary);
   background: var(--btn-hover-bg);
 }
 
-.modal-body {
-  padding: 16px;
+.update-popover-body {
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  overflow-y: auto;
 }
 
-.update-version-row {
+.update-state-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+
+.update-state-panel.hidden {
+  display: none !important;
+}
+
+.update-state-icon-row {
+  margin-bottom: 2px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
+  justify-content: center;
+  color: var(--text-muted);
 }
 
-.version-label {
-  color: var(--text-secondary);
+.update-status-emerald {
+  color: #10a37f;
 }
 
-.version-badge {
+.update-status-blue {
+  color: #3b82f6;
+}
+
+.update-status-amber {
+  color: #f59e0b;
+}
+
+.update-spinner-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 6px 0;
+}
+
+.update-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-bar);
+  border-top-color: var(--accent-color);
+  border-radius: 50%;
+  animation: updateSpin 0.75s linear infinite;
+}
+
+@keyframes updateSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.update-state-heading {
+  font-size: 13px;
   font-weight: 600;
-  background: var(--bg-tab-hover);
-  padding: 2px 8px;
-  border-radius: 10px;
-  border: 1px solid var(--border-bar);
-  font-size: 11px;
-}
-
-.update-status-box {
-  padding: 10px;
-  border-radius: 6px;
-  background: var(--bg-bar);
-  border: 1px solid var(--border-bar);
-}
-
-.status-text {
-  font-size: 12px;
   color: var(--text-primary);
-  line-height: 1.4;
 }
 
-.update-notes-box {
-  max-height: 120px;
-  overflow-y: auto;
-  font-size: 11px;
-  line-height: 1.4;
+.update-state-desc {
+  font-size: 11.5px;
+  line-height: 1.45;
   color: var(--text-secondary);
-  background: var(--bg-bar);
-  padding: 8px;
+  margin: 0;
+}
+
+.update-error-desc {
+  color: #ef4444;
+}
+
+.update-version-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.update-meta-version {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.update-timestamp-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.update-version-diff {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.ver-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
   border-radius: 6px;
+}
+
+.ver-current {
+  background: var(--bg-bar);
+  color: var(--text-secondary);
   border: 1px solid var(--border-bar);
 }
 
-.update-notes-box.hidden {
-  display: none;
+.ver-latest {
+  background: rgba(16, 163, 127, 0.15);
+  color: #10a37f;
+  border: 1px solid rgba(16, 163, 127, 0.35);
 }
 
-.notes-heading {
+.diff-arrow {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.update-notes-container {
+  width: 100%;
+  max-height: 110px;
+  overflow-y: auto;
+  background: var(--bg-bar);
+  border: 1px solid var(--border-bar);
+  border-radius: 6px;
+  padding: 8px 10px;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.update-notes-title {
+  font-size: 10.5px;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
-.modal-footer {
+.update-notes-content {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.update-progress-track {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-bar);
+  border: 1px solid var(--border-bar);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.update-progress-fill {
+  height: 100%;
+  background: var(--accent-color);
+  transition: width 0.2s ease;
+}
+
+.update-progress-stats {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.update-popover-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-top: 1px solid var(--border-bar);
   background: var(--bg-bar);
 }
 
-.modal-btn {
+.popover-btn {
   padding: 6px 12px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 500;
   cursor: pointer;
   border: 1px solid transparent;
   transition: background-color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
 }
 
-.modal-btn-primary {
+.popover-btn-primary {
   background: var(--accent-color);
   color: #ffffff;
   border-color: var(--accent-color);
 }
 
-.modal-btn-primary:hover {
+.popover-btn-primary:hover {
   background: #0d8a6a;
 }
 
-.modal-btn-secondary {
+.popover-btn-secondary {
   background: transparent;
   color: var(--text-secondary);
   border-color: var(--border-bar);
 }
 
-.modal-btn-secondary:hover {
+.popover-btn-secondary:hover {
   background: var(--btn-hover-bg);
   color: var(--text-primary);
+}
+
+.popover-btn:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 1px;
 }
 
 @keyframes fadeIn {

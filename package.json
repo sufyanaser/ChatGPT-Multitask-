@@ -1,6 +1,6 @@
 {
   "name": "chatgpt-multitask",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Cross-platform desktop application for official ChatGPT with native multi-tab functionality",
   "main": "dist/main/index.js",
   "author": "ChatGPT Multitask Contributors",
@@ -10,7 +10,8 @@
     "url": "https://github.com/sufyanaser/ChatGPT-Multitask-.git"
   },
   "scripts": {
-    "clean": "rimraf dist release",
+    "clean": "rimraf dist",
+    "clean:all": "rimraf dist release",
     "build:tsc": "tsc",
     "build": "npm run clean && tsc && node scripts/copy-assets.js",
     "typecheck": "tsc --noEmit",
@@ -18,11 +19,11 @@
     "test": "npm run build && node scripts/run-tests.js",
     "start": "npm run build && electron .",
     "generate:icons": "node scripts/generate-icons.js",
-    "pack:win": "npm run build && electron-builder --win --x64",
-    "pack:mac": "npm run build && electron-builder --mac --arm64",
-    "dist:win": "npm run build && electron-builder --win --x64",
-    "dist:mac": "npm run build && electron-builder --mac --arm64",
-    "dist": "npm run build && electron-builder"
+    "pack:win": "npm run build && electron-builder --win --x64 --publish never",
+    "pack:mac": "npm run build && electron-builder --mac --arm64 --x64 --publish never",
+    "dist:win": "npm run build && electron-builder --win --x64 --publish never",
+    "dist:mac": "npm run build && electron-builder --mac --arm64 --x64 --publish never",
+    "dist": "npm run build && electron-builder --publish never"
   },
   "dependencies": {
     "electron-updater": "^6.8.11"
@@ -76,13 +77,15 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         }
       ],

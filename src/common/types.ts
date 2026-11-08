@@ -72,8 +72,43 @@ export interface BrowserStatePayload {
   visible?: boolean;
 }
 
+export type UpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'up-to-date'
+  | 'no-release'
+  | 'not-available'
+  | 'available'
+  | 'downloading'
+  | 'ready'
+  | 'error';
+
+export interface UpdateDownloadProgress {
+  percent: number;
+  bytesPerSecond: number;
+  transferred: number;
+  total: number;
+}
+
+export interface UpdateDownloadedPayload {
+  version: string;
+  releaseNotes?: string;
+}
+
+export interface UpdateErrorPayload {
+  message: string;
+  code?: string;
+}
+
+export interface UpdateDownloadResult {
+  success: boolean;
+  error?: string;
+  message?: string;
+  canceled?: boolean;
+}
+
 export interface UpdateInfoPayload {
-  status: 'checking' | 'available' | 'not-available' | 'error';
+  status: UpdateStatus;
   currentVersion: string;
   latestVersion?: string;
   releaseNotes?: string;
@@ -81,6 +116,8 @@ export interface UpdateInfoPayload {
   releaseUrl?: string;
   hasUpdate?: boolean;
   checkedAt?: string;
+  canAutoDownload?: boolean;
+  downloadProgress?: UpdateDownloadProgress;
 }
 
 export const IPC_CHANNELS = {
@@ -129,5 +166,16 @@ export const IPC_CHANNELS = {
 
   // Application Updater & External
   CHECK_FOR_UPDATES: 'app:check-for-updates',
-  OPEN_EXTERNAL: 'app:open-external'
+  GET_APP_VERSION: 'app:get-version',
+  OPEN_EXTERNAL: 'app:open-external',
+  OPEN_UPDATE_DIALOG: 'app:open-update-dialog',
+
+  // Auto-Updater Pipeline
+  START_DOWNLOAD: 'updater:start-download',
+  CANCEL_DOWNLOAD: 'updater:cancel-download',
+  DOWNLOAD_PROGRESS: 'updater:download-progress',
+  UPDATE_DOWNLOADED: 'updater:downloaded',
+  UPDATE_CANCELED: 'updater:canceled',
+  QUIT_AND_INSTALL: 'updater:quit-and-install',
+  UPDATE_ERROR: 'updater:error'
 } as const;

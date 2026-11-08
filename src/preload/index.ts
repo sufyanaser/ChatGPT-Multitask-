@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import {
+import type {
   TabItem,
   TabStatePayload,
   ThemeMode,
@@ -7,18 +7,26 @@ import {
   TabTypeOverride,
   LayoutMode,
   BrowserStatePayload,
-  UpdateInfoPayload
+  UpdateInfoPayload,
+  UpdateDownloadProgress,
+  UpdateDownloadedPayload,
+  UpdateErrorPayload,
+  UpdateDownloadResult
 } from '../common/types';
 
+/**
+ * Sandboxed preload scripts cannot require local modules, so the channel
+ * contract is mirrored here as string literals. Keep this map in sync with
+ * IPC_CHANNELS in src/common/types.ts (unit tests assert both surfaces).
+ */
 const IPC = {
-  // Main -> Renderer
   TABS_STATE_UPDATE: 'tabs:state-update',
   THEME_UPDATE: 'theme:update',
   THEME_CHANGED: 'theme:changed',
   FULLSCREEN_UPDATE: 'window:fullscreen-update',
   ZOOM_UPDATE: 'zoom:update',
+  BROWSER_STATE_UPDATE: 'browser:state-update',
 
-  // Renderer -> Main
   TAB_CREATE: 'tabs:create',
   TAB_CLOSE: 'tabs:close',
   TAB_SELECT: 'tabs:select',
@@ -30,17 +38,14 @@ const IPC = {
   TAB_SHOW_CONTEXT_MENU: 'tabs:show-context-menu',
   GET_INITIAL_STATE: 'tabs:get-initial-state',
 
-  // Theme Sync
-  THEME_GET: 'theme:get',
   GET_THEME: 'theme:get',
   SET_THEME: 'theme:set',
+
   ZOOM_GET: 'zoom:get',
   ZOOM_SET: 'zoom:set',
   ZOOM_RESET: 'zoom:reset',
 
-  // Side Browser Split-View
   BROWSER_TOGGLE: 'browser:toggle',
-  BROWSER_STATE_UPDATE: 'browser:state-update',
   BROWSER_GET_STATE: 'browser:get-state',
   BROWSER_SET_LAYOUT: 'browser:set-layout',
   BROWSER_SET_SPLIT_RATIO: 'browser:set-split-ratio',
@@ -52,9 +57,18 @@ const IPC = {
   BROWSER_FORWARD: 'browser:forward',
   BROWSER_RELOAD: 'browser:reload',
 
-  // Updater & External
   CHECK_FOR_UPDATES: 'app:check-for-updates',
-  OPEN_EXTERNAL: 'app:open-external'
+  GET_APP_VERSION: 'app:get-version',
+  OPEN_EXTERNAL: 'app:open-external',
+  OPEN_UPDATE_DIALOG: 'app:open-update-dialog',
+
+  START_DOWNLOAD: 'updater:start-download',
+  CANCEL_DOWNLOAD: 'updater:cancel-download',
+  DOWNLOAD_PROGRESS: 'updater:download-progress',
+  UPDATE_DOWNLOADED: 'updater:downloaded',
+  UPDATE_CANCELED: 'updater:canceled',
+  QUIT_AND_INSTALL: 'updater:quit-and-install',
+  UPDATE_ERROR: 'updater:error'
 } as const;
 
 export interface ElectronTabAPI {
@@ -98,6 +112,16 @@ export interface ElectronTabAPI {
 
   // Updater API & External
   checkForUpdates: () => Promise<UpdateInfoPayload>;
+  getAppVersion: () => Promise<string>;
+  startDownload: () => Promise<UpdateDownloadResult>;
+  startDownloadUpdate: () => Promise<UpdateDownloadResult>;
+  cancelDownload: () => void;
+  quitAndInstall: () => void;
+  onDownloadProgress: (callback: (progress: UpdateDownloadProgress) => void) => () => void;
+  onUpdateDownloadProgress: (callback: (progress: UpdateDownloadProgress) => void) => () => void;
+  onUpdateDownloaded: (callback: (payload: UpdateDownloadedPayload) => void) => () => void;
+  onUpdateCanceled: (callback: () => void) => () => void;
+  onUpdateError: (callback: (payload: UpdateErrorPayload) => void) => () => void;
   openExternal: (url: string) => Promise<void>;
   onOpenUpdateDialog: (callback: () => void) => () => void;
 }
@@ -291,6 +315,70 @@ const api: ElectronTabAPI = {
     return ipcRenderer.invoke(IPC.CHECK_FOR_UPDATES);
   },
 
+  getAppVersion: async (): Promise<string> => {
+    return ipcRenderer.invoke(IPC.GET_APP_VERSION);
+  },
+
+  startDownload: async (): Promise<UpdateDownloadResult> => {
+    return ipcRenderer.invoke(IPC.START_DOWNLOAD);
+  },
+
+  startDownloadUpdate: async (): Promise<UpdateDownloadResult> => {
+    return api.startDownload();
+  },
+
+  cancelDownload: (): void => {
+    ipcRenderer.send(IPC.CANCEL_DOWNLOAD);
+  },
+
+  quitAndInstall: (): void => {
+    ipcRenderer.send(IPC.QUIT_AND_INSTALL);
+  },
+
+  onDownloadProgress: (callback: (progress: UpdateDownloadProgress) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, progress: UpdateDownloadProgress) => {
+      callback(progress);
+    };
+    ipcRenderer.on(IPC.DOWNLOAD_PROGRESS, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC.DOWNLOAD_PROGRESS, listener);
+    };
+  },
+
+  onUpdateDownloadProgress: (callback: (progress: UpdateDownloadProgress) => void) => {
+    return api.onDownloadProgress(callback);
+  },
+
+  onUpdateDownloaded: (callback: (payload: UpdateDownloadedPayload) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: UpdateDownloadedPayload) => {
+      callback(payload);
+    };
+    ipcRenderer.on(IPC.UPDATE_DOWNLOADED, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC.UPDATE_DOWNLOADED, listener);
+    };
+  },
+
+  onUpdateCanceled: (callback: () => void) => {
+    const listener = () => {
+      callback();
+    };
+    ipcRenderer.on(IPC.UPDATE_CANCELED, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC.UPDATE_CANCELED, listener);
+    };
+  },
+
+  onUpdateError: (callback: (payload: UpdateErrorPayload) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: UpdateErrorPayload) => {
+      callback(payload);
+    };
+    ipcRenderer.on(IPC.UPDATE_ERROR, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC.UPDATE_ERROR, listener);
+    };
+  },
+
   openExternal: async (url: string): Promise<void> => {
     return ipcRenderer.invoke(IPC.OPEN_EXTERNAL, url);
   },
@@ -299,10 +387,10 @@ const api: ElectronTabAPI = {
     const listener = () => {
       callback();
     };
-    ipcRenderer.on('open-update-dialog', listener);
+    ipcRenderer.on(IPC.OPEN_UPDATE_DIALOG, listener);
 
     return () => {
-      ipcRenderer.removeListener('open-update-dialog', listener);
+      ipcRenderer.removeListener(IPC.OPEN_UPDATE_DIALOG, listener);
     };
   }
 };

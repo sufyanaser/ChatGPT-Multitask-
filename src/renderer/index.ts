@@ -8,6 +8,9 @@ type LayoutMode = import('../common/types').LayoutMode;
 type BrowserTabItem = import('../common/types').BrowserTabItem;
 type BrowserStatePayload = import('../common/types').BrowserStatePayload;
 type UpdateInfoPayload = import('../common/types').UpdateInfoPayload;
+type UpdateDownloadProgress = import('../common/types').UpdateDownloadProgress;
+type UpdateDownloadedPayload = import('../common/types').UpdateDownloadedPayload;
+type UpdateErrorPayload = import('../common/types').UpdateErrorPayload;
 type ElectronTabAPI = import('../preload').ElectronTabAPI;
 
 interface Window {
@@ -44,15 +47,17 @@ class AppViewController {
   private btnBrowserClose: HTMLButtonElement | null;
   private splitDivider: HTMLElement | null;
 
-  // Updates UI elements
+  // Updates Popover UI elements (UX-008)
   private btnUpdates: HTMLButtonElement | null;
-  private updateModal: HTMLElement | null;
-  private modalTitle: HTMLElement | null;
-  private modalBody: HTMLElement | null;
-  private modalSpinner: HTMLElement | null;
-  private btnModalAction: HTMLButtonElement | null;
-  private btnModalDismiss: HTMLButtonElement | null;
-  private btnModalClose: HTMLButtonElement | null;
+  private updatePopover: HTMLElement | null;
+  private btnPopoverClose: HTMLButtonElement | null;
+  private btnUpdateActionPrimary: HTMLButtonElement | null;
+  private btnUpdateActionSecondary: HTMLButtonElement | null;
+  private statePanels: { [key: string]: HTMLElement | null } = {};
+  private currentUpdateState: 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'ready' | 'error' = 'idle';
+  private isCheckingUpdates: boolean = false;
+  private checkRequestId: number = 0;
+  private currentAppVersion: string = '0.2.0';
 
   // State trackers
   private currentThemeMode: ThemeMode = 'system';
@@ -96,15 +101,22 @@ class AppViewController {
     this.btnBrowserClose = document.getElementById('btn-browser-close') as HTMLButtonElement | null;
     this.splitDivider = document.getElementById('split-divider');
 
-    // Updates modal elements
+    // Updates popover elements (UX-008)
     this.btnUpdates = document.getElementById('btn-updates') as HTMLButtonElement | null;
-    this.updateModal = document.getElementById('update-modal');
-    this.modalTitle = document.getElementById('modal-title');
-    this.modalBody = document.getElementById('modal-body');
-    this.modalSpinner = document.getElementById('modal-spinner');
-    this.btnModalAction = document.getElementById('btn-modal-action') as HTMLButtonElement | null;
-    this.btnModalDismiss = document.getElementById('btn-modal-dismiss') as HTMLButtonElement | null;
-    this.btnModalClose = document.getElementById('btn-modal-close') as HTMLButtonElement | null;
+    this.updatePopover = document.getElementById('update-popover');
+    this.btnPopoverClose = document.getElementById('btn-popover-close') as HTMLButtonElement | null;
+    this.btnUpdateActionPrimary = document.getElementById('btn-update-action-primary') as HTMLButtonElement | null;
+    this.btnUpdateActionSecondary = document.getElementById('btn-update-action-secondary') as HTMLButtonElement | null;
+
+    this.statePanels = {
+      idle: document.getElementById('state-idle'),
+      checking: document.getElementById('state-checking'),
+      'up-to-date': document.getElementById('state-up-to-date'),
+      available: document.getElementById('state-available'),
+      downloading: document.getElementById('state-downloading'),
+      ready: document.getElementById('state-ready'),
+      error: document.getElementById('state-error')
+    };
 
     this.initPlatformStyle();
     this.initThemeAndWindow();
@@ -112,6 +124,7 @@ class AppViewController {
     this.bindChatEvents();
     this.bindBrowserEvents();
     this.bindUpdateEvents();
+    this.loadAppVersion();
     this.bindSplitDividerEvents();
     this.listenToStateUpdates();
   }
@@ -257,17 +270,16 @@ class AppViewController {
     }
   }
 
-  private async initZoom(): Promise<void> {
+  private initZoom(): void {
     if (!window.api) return;
 
-    try {
-      if (window.api.getZoom) {
-        const factor = await window.api.getZoom();
+    if (window.api.getZoom) {
+      window.api.getZoom().then((factor: number) => {
         this.applyZoom(factor);
-      }
-    } catch (err) {
-      console.warn('Failed to get initial zoom:', err);
-      this.applyZoom(1.0);
+      }).catch((err: any) => {
+        console.warn('Failed to get initial zoom:', err);
+        this.applyZoom(1.0);
+      });
     }
 
     if (window.api.onZoomUpdate) {
@@ -360,7 +372,6 @@ class AppViewController {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.closeZoomPopover();
-        this.closeUpdateModal();
       }
     });
   }
@@ -485,114 +496,500 @@ class AppViewController {
   }
 
   // =========================================================================
-  // Updates Modal
+  // UX-008: Native Anchored Update Popover Controller & State Machine
   // =========================================================================
 
   private bindUpdateEvents(): void {
     if (this.btnUpdates) {
-      this.btnUpdates.addEventListener('click', () => {
-        this.openUpdateModalAndCheck();
+      this.btnUpdates.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleUpdatePopover();
       });
     }
 
-    if (this.btnModalClose) {
-      this.btnModalClose.addEventListener('click', () => {
-        this.closeUpdateModal();
+    if (this.btnPopoverClose) {
+      this.btnPopoverClose.addEventListener('click', () => {
+        this.closeUpdatePopover();
+        this.btnUpdates?.focus();
       });
     }
 
-    if (this.btnModalDismiss) {
-      this.btnModalDismiss.addEventListener('click', () => {
-        this.closeUpdateModal();
+    // Dismissal: Click-Outside
+    document.addEventListener('pointerdown', (e: MouseEvent) => {
+      if (!this.updatePopover || this.updatePopover.classList.contains('hidden')) return;
+      const target = e.target as Node;
+      if (!this.updatePopover.contains(target) && !this.btnUpdates?.contains(target)) {
+        this.closeUpdatePopover();
+      }
+    });
+
+    // Dismissal: Escape Key (restores focus to #btn-updates)
+    document.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && this.updatePopover && !this.updatePopover.classList.contains('hidden')) {
+        this.closeUpdatePopover();
+        this.btnUpdates?.focus();
+      }
+    });
+
+    // Dynamic Viewport Adjustment on Window Resize
+    window.addEventListener('resize', () => {
+      if (this.updatePopover && !this.updatePopover.classList.contains('hidden')) {
+        this.updatePopoverPosition();
+      }
+    });
+
+    // External Trigger (App Menu / IPC)
+    if (window.api?.onOpenUpdateDialog) {
+      window.api.onOpenUpdateDialog(() => {
+        this.openUpdatePopover();
       });
     }
 
-    if (this.updateModal) {
-      this.updateModal.addEventListener('click', (e) => {
-        if (e.target === this.updateModal) {
-          this.closeUpdateModal();
+    // Authentic IPC Progress & Downloaded Event Subscriptions
+    if (window.api?.onDownloadProgress) {
+      window.api.onDownloadProgress((progress: UpdateDownloadProgress) => {
+        if (this.lastCheckedUpdate) {
+          this.lastCheckedUpdate.downloadProgress = progress;
+        }
+        if (this.currentUpdateState === 'downloading') {
+          this.handleDownloadProgress(progress);
+        }
+      });
+    }
+
+    if (window.api?.onUpdateDownloaded) {
+      window.api.onUpdateDownloaded((info: UpdateDownloadedPayload) => {
+        this.setUpdateState('ready', info);
+      });
+    }
+
+    if (window.api?.onUpdateError) {
+      window.api.onUpdateError((err: UpdateErrorPayload) => {
+        this.setUpdateState('error', {
+          errorMessage: err.message,
+          releaseUrl: this.lastCheckedUpdate?.releaseUrl
+        });
+      });
+    }
+
+    // A canceled download is a user choice, never an error. Return to the
+    // "available" view so the update can be retried.
+    if (window.api?.onUpdateCanceled) {
+      window.api.onUpdateCanceled(() => {
+        if (this.currentUpdateState === 'downloading') {
+          this.setUpdateState('available', this.lastCheckedUpdate);
         }
       });
     }
   }
 
-  private openUpdateModalAndCheck(): void {
-    if (!this.updateModal) return;
+  private toggleUpdatePopover(): void {
+    if (!this.updatePopover) return;
+    if (this.updatePopover.classList.contains('hidden')) {
+      this.openUpdatePopover();
+    } else {
+      this.closeUpdatePopover();
+    }
+  }
 
-    this.updateModal.classList.remove('hidden');
-    if (this.modalSpinner) this.modalSpinner.classList.remove('hidden');
-    if (this.modalTitle) this.modalTitle.textContent = 'Checking for Updates...';
-    if (this.modalBody) {
-      this.modalBody.innerHTML = '<p>Connecting to official releases repository to verify version status...</p>';
+  private openUpdatePopover(): void {
+    if (!this.updatePopover) return;
+
+    this.updatePopover.classList.remove('hidden');
+    this.btnUpdates?.setAttribute('aria-expanded', 'true');
+    this.updatePopoverPosition();
+
+    // If never checked before, trigger update check; otherwise restore current state
+    if (this.currentUpdateState === 'idle' && !this.isCheckingUpdates) {
+      this.checkForUpdates();
+    } else {
+      this.setUpdateState(this.currentUpdateState, this.lastCheckedUpdate);
     }
-    if (this.btnModalAction) {
-      this.btnModalAction.classList.add('hidden');
-      this.btnModalAction.onclick = null;
+  }
+
+  private closeUpdatePopover(): void {
+    if (!this.updatePopover || this.updatePopover.classList.contains('hidden')) return;
+    this.updatePopover.classList.add('hidden');
+    this.btnUpdates?.setAttribute('aria-expanded', 'false');
+  }
+
+  /**
+   * Calculates popover position anchored directly beneath #btn-updates
+   * Clamped with minimum 8px viewport margins on narrow windows.
+   */
+  private updatePopoverPosition(): void {
+    if (!this.updatePopover || !this.btnUpdates) return;
+
+    const btnRect = this.btnUpdates.getBoundingClientRect();
+    const popoverWidth = 320;
+    const margin = 8;
+    const topOffset = btnRect.bottom + 6;
+
+    let rightOffset = window.innerWidth - btnRect.right - 4;
+    if (rightOffset < margin) rightOffset = margin;
+    if (window.innerWidth - rightOffset - popoverWidth < margin) {
+      rightOffset = Math.max(margin, window.innerWidth - popoverWidth - margin);
     }
-    if (this.btnModalDismiss) {
-      this.btnModalDismiss.textContent = 'Cancel';
+
+    // Vertical clamp: on short windows the popover must stay fully inside the
+    // viewport instead of being clipped below the fold. Measured after the
+    // panel becomes visible so offsetHeight reflects the active state.
+    const popoverHeight = this.updatePopover.offsetHeight || 0;
+    const maxTop = window.innerHeight - popoverHeight - margin;
+    const top = popoverHeight > 0 ? Math.max(margin, Math.min(topOffset, maxTop)) : topOffset;
+
+    this.updatePopover.style.top = `${top}px`;
+    this.updatePopover.style.right = `${rightOffset}px`;
+  }
+
+  /**
+   * 7-State Finite State Machine for UX-008
+   */
+  private setUpdateState(state: 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'ready' | 'error', data?: any): void {
+    this.currentUpdateState = state;
+
+    // Toggle panels
+    Object.keys(this.statePanels).forEach((panelKey) => {
+      const el = this.statePanels[panelKey];
+      if (el) {
+        if (panelKey === state) {
+          el.classList.remove('hidden');
+        } else {
+          el.classList.add('hidden');
+        }
+      }
+    });
+
+    const primaryBtn = this.btnUpdateActionPrimary;
+    const secondaryBtn = this.btnUpdateActionSecondary;
+
+    switch (state) {
+      case 'idle': {
+        if (data?.currentVersion) {
+          this.bindCurrentVersion(data.currentVersion);
+        }
+        if (primaryBtn) {
+          primaryBtn.classList.remove('hidden');
+          primaryBtn.textContent = 'Check for Updates';
+          primaryBtn.disabled = false;
+          primaryBtn.onclick = () => {
+            this.checkForUpdates();
+          };
+        }
+        if (secondaryBtn) {
+          secondaryBtn.classList.add('hidden');
+          secondaryBtn.onclick = null;
+        }
+        break;
+      }
+
+      case 'checking': {
+        if (primaryBtn) {
+          primaryBtn.classList.remove('hidden');
+          primaryBtn.textContent = 'Checking...';
+          primaryBtn.disabled = true;
+          primaryBtn.onclick = null;
+        }
+        if (secondaryBtn) {
+          secondaryBtn.classList.remove('hidden');
+          secondaryBtn.textContent = 'Cancel';
+          secondaryBtn.onclick = () => {
+            this.checkRequestId++;
+            this.isCheckingUpdates = false;
+            this.setUpdateState('idle', this.lastCheckedUpdate);
+          };
+        }
+        break;
+      }
+
+      case 'up-to-date': {
+        const verEl = document.getElementById('uptodate-version');
+        const tsEl = document.getElementById('uptodate-timestamp');
+        const headingEl = document.querySelector('#state-up-to-date .update-state-heading');
+        const descEl = document.querySelector('#state-up-to-date .update-state-desc');
+        const iconContainer = document.querySelector('#state-up-to-date .update-state-icon-row');
+
+        if (data?.status === 'no-release') {
+          // Distinct presentation for GitHub 404 (no published releases found)
+          if (headingEl) headingEl.textContent = 'No Published Releases';
+          if (descEl) descEl.textContent = 'No official releases have been published yet on GitHub. You are running local development build.';
+          if (iconContainer) {
+            iconContainer.classList.remove('update-status-emerald');
+            iconContainer.classList.add('update-status-blue');
+          }
+          if (tsEl) {
+            const dateStr = data?.checkedAt ? new Date(data.checkedAt).toLocaleTimeString() : new Date().toLocaleTimeString();
+            tsEl.textContent = `Checked today at ${dateStr}`;
+          }
+          if (primaryBtn) {
+            primaryBtn.classList.remove('hidden');
+            primaryBtn.textContent = 'Done';
+            primaryBtn.disabled = false;
+            primaryBtn.onclick = () => {
+              this.closeUpdatePopover();
+            };
+          }
+          if (secondaryBtn) {
+            secondaryBtn.classList.remove('hidden');
+            secondaryBtn.textContent = 'View on GitHub';
+            secondaryBtn.onclick = () => {
+              window.api?.openExternal?.(data?.releaseUrl || 'https://github.com/sufyanaser/ChatGPT-Multitask-/releases');
+            };
+          }
+        } else {
+          // Valid comparison against a release succeeded
+          if (headingEl) headingEl.textContent = "You're Up to Date";
+          if (descEl) {
+            descEl.innerHTML = `ChatGPT Multitask <strong id="uptodate-version">v${data?.latestVersion || data?.currentVersion || this.currentAppVersion}</strong> is currently the newest version available.`;
+          }
+          if (iconContainer) {
+            iconContainer.classList.add('update-status-emerald');
+            iconContainer.classList.remove('update-status-blue');
+          }
+          if (verEl) {
+            verEl.textContent = `v${data?.latestVersion || data?.currentVersion || this.currentAppVersion}`;
+          }
+          if (tsEl) {
+            const dateStr = data?.checkedAt ? new Date(data.checkedAt).toLocaleTimeString() : new Date().toLocaleTimeString();
+            tsEl.textContent = `Checked today at ${dateStr}`;
+          }
+          if (primaryBtn) {
+            primaryBtn.classList.remove('hidden');
+            primaryBtn.textContent = 'Done';
+            primaryBtn.disabled = false;
+            primaryBtn.onclick = () => {
+              this.closeUpdatePopover();
+            };
+          }
+          if (secondaryBtn) {
+            secondaryBtn.classList.add('hidden');
+            secondaryBtn.onclick = null;
+          }
+        }
+        break;
+      }
+
+      case 'available': {
+        const currEl = document.getElementById('diff-current-ver');
+        const latestEl = document.getElementById('diff-latest-ver');
+        const notesEl = document.getElementById('update-release-notes');
+
+        const currentVer = data?.currentVersion || this.currentAppVersion;
+        const latestVer = data?.latestVersion || '0.2.0';
+
+        if (currEl) currEl.textContent = `v${currentVer}`;
+        if (latestEl) latestEl.textContent = `v${latestVer}`;
+        if (notesEl) notesEl.textContent = data?.releaseNotes || 'New stable release available on GitHub.';
+
+        if (primaryBtn) {
+          primaryBtn.classList.remove('hidden');
+          primaryBtn.textContent = 'Download Update';
+          primaryBtn.disabled = false;
+          primaryBtn.onclick = () => {
+            this.startDownload(data);
+          };
+        }
+        if (secondaryBtn) {
+          secondaryBtn.classList.remove('hidden');
+          secondaryBtn.textContent = 'View on GitHub';
+          secondaryBtn.onclick = () => {
+            const url = data?.releaseUrl || 'https://github.com/sufyanaser/ChatGPT-Multitask-/releases/latest';
+            window.api?.openExternal?.(url);
+          };
+        }
+        break;
+      }
+
+      case 'downloading': {
+        if (primaryBtn) {
+          primaryBtn.classList.add('hidden');
+          primaryBtn.onclick = null;
+        }
+        if (secondaryBtn) {
+          secondaryBtn.classList.remove('hidden');
+          secondaryBtn.textContent = 'Cancel';
+          secondaryBtn.onclick = () => {
+            window.api?.cancelDownload?.();
+            this.setUpdateState('available', this.lastCheckedUpdate);
+          };
+        }
+        if (data?.downloadProgress) {
+          this.handleDownloadProgress(data.downloadProgress);
+        }
+        break;
+      }
+
+      case 'ready': {
+        if (primaryBtn) {
+          primaryBtn.classList.remove('hidden');
+          primaryBtn.textContent = 'Restart & Install';
+          primaryBtn.disabled = false;
+          primaryBtn.onclick = () => {
+            this.restartAndInstall();
+          };
+        }
+        if (secondaryBtn) {
+          secondaryBtn.classList.remove('hidden');
+          secondaryBtn.textContent = 'Later';
+          secondaryBtn.onclick = () => {
+            this.closeUpdatePopover();
+          };
+        }
+        break;
+      }
+
+      case 'error': {
+        const errEl = document.getElementById('update-error-message');
+        if (errEl) {
+          errEl.textContent = data?.errorMessage || 'Unable to connect to update server.';
+        }
+
+        if (primaryBtn) {
+          primaryBtn.classList.remove('hidden');
+          primaryBtn.textContent = 'Try Again';
+          primaryBtn.disabled = false;
+          primaryBtn.onclick = () => {
+            this.checkForUpdates();
+          };
+        }
+        if (secondaryBtn) {
+          secondaryBtn.classList.remove('hidden');
+          secondaryBtn.textContent = 'View on GitHub';
+          secondaryBtn.onclick = () => {
+            const url = data?.releaseUrl || 'https://github.com/sufyanaser/ChatGPT-Multitask-/releases';
+            window.api?.openExternal?.(url);
+          };
+        }
+        break;
+      }
     }
+
+    // Reposition popover on content/state change to guarantee bounds
+    this.updatePopoverPosition();
+  }
+
+  private bindCurrentVersion(version?: string): void {
+    if (!version) return;
+    const clean = version.trim().replace(/^[vV]/, '');
+    // Ignore Electron's development placeholder so the UI always shows a
+    // real product version.
+    if (!clean || clean === '0.0' || clean === '0.0.0') return;
+    this.currentAppVersion = clean;
+    const badge = document.getElementById('update-current-version-badge');
+    if (badge) badge.textContent = `v${clean}`;
+    const metaVer = document.querySelector('.update-meta-version');
+    if (metaVer) metaVer.textContent = `v${clean}`;
+  }
+
+  /**
+   * Fetch the packaged application version from the main process so the badge
+   * never shows a stale hardcoded value.
+   */
+  private async loadAppVersion(): Promise<void> {
+    try {
+      const version = await window.api?.getAppVersion?.();
+      this.bindCurrentVersion(version);
+    } catch (err) {
+      console.warn('Unable to read application version:', err);
+    }
+  }
+
+  private checkForUpdates(): void {
+    if (this.isCheckingUpdates) return;
+    const reqId = ++this.checkRequestId;
+    this.isCheckingUpdates = true;
+    this.setUpdateState('checking');
 
     window.api?.checkForUpdates?.()
       .then((info: UpdateInfoPayload) => {
+        if (reqId !== this.checkRequestId) {
+          return; // Request was canceled or superseded
+        }
+        this.isCheckingUpdates = false;
         this.lastCheckedUpdate = info;
-        this.renderUpdateInfo(info);
+
+        if (info.currentVersion) {
+          this.bindCurrentVersion(info.currentVersion);
+        }
+
+        if (info.hasUpdate && info.latestVersion) {
+          this.setUpdateState('available', info);
+        } else if (info.status === 'error') {
+          this.setUpdateState('error', info);
+        } else {
+          // 'no-release', 'not-available', or 'up-to-date'
+          this.setUpdateState('up-to-date', info);
+        }
       })
       .catch((err: any) => {
-        if (this.modalSpinner) this.modalSpinner.classList.add('hidden');
-        if (this.modalTitle) this.modalTitle.textContent = 'Update Check Failed';
-        if (this.modalBody) {
-          this.modalBody.innerHTML = `<p class="update-error">Unable to check for updates: ${err?.message || 'Network error'}</p><p class="text-secondary">Please check your internet connection or check releases manually on GitHub.</p>`;
-        }
-        if (this.btnModalAction) {
-          this.btnModalAction.classList.remove('hidden');
-          this.btnModalAction.textContent = 'View on GitHub';
-          this.btnModalAction.onclick = () => {
-            window.api?.openExternal?.('https://github.com/sufyanaser/ChatGPT-Multitask-/releases');
-          };
-        }
-        if (this.btnModalDismiss) {
-          this.btnModalDismiss.textContent = 'Close';
-        }
+        if (reqId !== this.checkRequestId) return;
+        this.isCheckingUpdates = false;
+        this.setUpdateState('error', {
+          errorMessage: err?.message || 'Network error connecting to update server.',
+          releaseUrl: 'https://github.com/sufyanaser/ChatGPT-Multitask-/releases'
+        });
       });
   }
 
-  private renderUpdateInfo(info: UpdateInfoPayload): void {
-    if (this.modalSpinner) this.modalSpinner.classList.add('hidden');
-    if (this.btnModalDismiss) this.btnModalDismiss.textContent = 'Close';
+  private handleDownloadProgress(progress: UpdateDownloadProgress): void {
+    const progressBar = document.getElementById('update-progress-bar');
+    const percentLabel = document.getElementById('download-progress-percent');
+    const bytesLabel = document.getElementById('download-progress-bytes');
 
-    if (info.hasUpdate && info.latestVersion) {
-      if (this.modalTitle) this.modalTitle.textContent = 'Update Available!';
-      let bodyHtml = `<p>A new version of ChatGPT Multitask is available: <strong>v${info.latestVersion}</strong> (current: v${info.currentVersion})</p>`;
-      if (info.releaseNotes) {
-        bodyHtml += `<div class="update-notes"><h6>Release Notes:</h6><pre>${this.escapeHtml(info.releaseNotes.slice(0, 400))}${info.releaseNotes.length > 400 ? '...' : ''}</pre></div>`;
-      }
-      if (this.modalBody) this.modalBody.innerHTML = bodyHtml;
+    const pct = Math.max(0, Math.min(100, Math.round((progress.percent || 0) * 10) / 10));
+    if (progressBar) progressBar.style.width = `${pct}%`;
+    if (percentLabel) percentLabel.textContent = `${pct}%`;
 
-      if (this.btnModalAction) {
-        this.btnModalAction.classList.remove('hidden');
-        this.btnModalAction.textContent = 'Download Update';
-        this.btnModalAction.onclick = () => {
-          const url = info.releaseUrl || 'https://github.com/sufyanaser/ChatGPT-Multitask-/releases/latest';
-          window.api?.openExternal?.(url);
-          this.closeUpdateModal();
-        };
-      }
-    } else {
-      if (this.modalTitle) this.modalTitle.textContent = "You're Up to Date";
-      if (this.modalBody) {
-        this.modalBody.innerHTML = `<p>ChatGPT Multitask <strong>v${info.currentVersion}</strong> is currently the newest version available.</p><p class="text-secondary">Checked at ${new Date(info.checkedAt || Date.now()).toLocaleTimeString()}</p>`;
-      }
-      if (this.btnModalAction) {
-        this.btnModalAction.classList.add('hidden');
+    if (bytesLabel) {
+      if (progress.total && progress.total > 0) {
+        const transMB = ((progress.transferred || 0) / (1024 * 1024)).toFixed(1);
+        const totalMB = (progress.total / (1024 * 1024)).toFixed(1);
+        bytesLabel.textContent = `${transMB} MB / ${totalMB} MB`;
+      } else if (progress.transferred && progress.transferred > 0) {
+        const transMB = ((progress.transferred || 0) / (1024 * 1024)).toFixed(1);
+        bytesLabel.textContent = `${transMB} MB`;
+      } else {
+        bytesLabel.textContent = 'Downloading...';
       }
     }
   }
 
-  private closeUpdateModal(): void {
-    if (this.updateModal && !this.updateModal.classList.contains('hidden')) {
-      this.updateModal.classList.add('hidden');
+  private startDownload(payload?: UpdateInfoPayload): void {
+    this.setUpdateState('downloading', payload);
+    const progressBar = document.getElementById('update-progress-bar');
+    const percentLabel = document.getElementById('download-progress-percent');
+    const bytesLabel = document.getElementById('download-progress-bytes');
+
+    if (progressBar) progressBar.style.width = '0%';
+    if (percentLabel) percentLabel.textContent = '0%';
+    if (bytesLabel) bytesLabel.textContent = 'Connecting...';
+
+    const downloadPromise = window.api?.startDownload ? window.api.startDownload() : window.api?.startDownloadUpdate?.();
+    if (downloadPromise && typeof downloadPromise.then === 'function') {
+      downloadPromise.then((res: any) => {
+        if (res && !res.success) {
+          if (res.canceled) {
+            // User-initiated cancellation: not a failure.
+            this.setUpdateState('available', this.lastCheckedUpdate || payload);
+            return;
+          }
+          this.setUpdateState('error', {
+            errorMessage: res.error || res.message || 'Unable to download update automatically.',
+            releaseUrl: payload?.releaseUrl
+          });
+        }
+      }).catch((err: any) => {
+        this.setUpdateState('error', {
+          errorMessage: err?.message || 'Error connecting to download service.',
+          releaseUrl: payload?.releaseUrl
+        });
+      });
     }
+  }
+
+  private restartAndInstall(): void {
+    this.closeUpdatePopover();
+    window.api?.quitAndInstall?.();
   }
 
   private escapeHtml(str: string): string {

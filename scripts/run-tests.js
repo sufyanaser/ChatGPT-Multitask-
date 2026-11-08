@@ -73,4 +73,46 @@ if (stabRes.status !== 0) {
   process.exit(stabRes.status || 1);
 }
 
+// 6. Run P0 Arabic RTL acceptance
+console.log('--- Step 6: P0 Arabic RTL Acceptance ---');
+const rtlRes = spawnSync(electronBin, [path.join(__dirname, '../tests/test-arabic-rtl.js')], {
+  stdio: 'inherit',
+  env: {
+    ...process.env,
+    ELECTRON_ENABLE_LOGGING: '1'
+  }
+});
+
+if (rtlRes.status !== 0) {
+  console.error('Arabic RTL acceptance failed with code', rtlRes.status);
+  process.exit(rtlRes.status || 1);
+}
+
+// 7. Run Arabic RTL adversarial stress
+console.log('--- Step 7: Arabic RTL Adversarial Stress ---');
+const rtlStressRes = spawnSync(electronBin, [path.join(__dirname, '../tests/stress-arabic-rtl.js')], {
+  stdio: 'inherit',
+  env: {
+    ...process.env,
+    ELECTRON_ENABLE_LOGGING: '1'
+  }
+});
+
+if (rtlStressRes.status !== 0) {
+  console.error('Arabic RTL adversarial stress failed with code', rtlStressRes.status);
+  process.exit(rtlStressRes.status || 1);
+}
+
+// 8. Run auto-updater & update popover integrity verification
+console.log('--- Step 8: Update Pipeline & Popover Integrity Verification ---');
+const m3Res = spawnSync('node', [path.join(__dirname, '../tests/test-m3-verification.js')], {
+  stdio: 'inherit',
+  env: process.env
+});
+
+if (m3Res.status !== 0) {
+  console.error('Update pipeline integrity verification failed with code', m3Res.status);
+  process.exit(m3Res.status || 1);
+}
+
 console.log('\nAll tests passed successfully!');

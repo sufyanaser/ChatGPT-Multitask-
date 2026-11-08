@@ -1,11 +1,16 @@
 import { app, BrowserWindow } from 'electron';
 import { WindowManager } from './window-manager';
 import { SessionManager } from './session-manager';
-import { AppUpdater } from './auto-updater';
 
 // Performance optimizations for Windows (GPU rasterization, zero-copy video/image buffers)
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
+
+// Stable Windows taskbar identity (must match the NSIS appId) for notifications
+// and correct grouping of the installed application.
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.chatgpt.multitask');
+}
 
 // Ensure single instance of the application
 const gotTheLock = app.requestSingleInstanceLock();
@@ -30,7 +35,6 @@ if (!gotTheLock) {
 
     windowManager = new WindowManager();
     windowManager.createWindow();
-    new AppUpdater();
 
     app.on('activate', () => {
       // On macOS, recreate window when dock icon is clicked and no windows exist

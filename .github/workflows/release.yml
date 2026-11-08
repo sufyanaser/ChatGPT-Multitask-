@@ -7,20 +7,67 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release Tag (e.g. v0.1.0)'
+        description: 'Existing release tag (e.g. v0.2.0)'
         required: true
-        default: 'v0.1.0'
+        default: 'v0.2.0'
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.release_tag || github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  validate-tag:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+
+      - name: Resolve and verify tag matches package version
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}"
+          VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION="${TAG#v}"
+          if [ "$TAG_VERSION" != "$VERSION" ]; then
+            echo "Tag ${TAG} does not match package.json version ${VERSION}" >&2
+            exit 1
+          fi
+          if ! git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} does not exist. Create and push the tag before releasing." >&2
+            exit 1
+          fi
+          if [ "$(git rev-parse "refs/tags/${TAG}^{commit}")" != "$(git rev-parse HEAD)" ]; then
+            echo "Warning: checked out commit differs from ${TAG}; packaging tag content."
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Releasing ${TAG} (v${VERSION})"
+
   release-windows:
-    name: Build & Release Windows x64
+    name: Build Windows x64
+    needs: validate-tag
     runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate-tag.outputs.tag }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -40,27 +87,52 @@ jobs:
       - name: Package Windows
         run: npm run pack:win
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
-      - name: Compute SHA-256
+      - name: Verify Windows update metadata
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
+          $version = "${{ needs.validate-tag.outputs.version }}"
           $installer = Get-Item "release\ChatGPT-Multitask-Windows-x64-Setup.exe"
-          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash
-          "$hash  $($installer.Name)" | Out-File -Encoding utf8 "release\SHA256SUMS-win.txt"
+          $latest = Get-Content "release\latest.yml" -Raw
+          if ($latest -notmatch "version:\s*$([regex]::Escape($version))") {
+            throw "latest.yml version mismatch"
+          }
+          if ($latest -notmatch "size:\s*$($installer.Length)\b") {
+            throw "latest.yml size mismatch"
+          }
+          $sha512 = [Convert]::ToBase64String(
+            [System.Security.Cryptography.SHA512]::Create().ComputeHash(
+              [System.IO.File]::ReadAllBytes($installer.FullName)
+            )
+          )
+          if ($latest -notmatch [regex]::Escape($sha512)) {
+            throw "latest.yml sha512 mismatch"
+          }
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-windows
-          path: release/*.*
+          if-no-files-found: error
+          path: |
+            release/ChatGPT-Multitask-Windows-x64-Setup.exe
+            release/ChatGPT-Multitask-Windows-x64-Setup.exe.blockmap
+            release/latest.yml
 
   release-macos:
-    name: Build & Release macOS arm64
+    name: Build macOS arm64 + x64
+    needs: validate-tag
     runs-on: macos-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate-tag.outputs.tag }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -80,16 +152,80 @@ jobs:
       - name: Package macOS
         run: npm run pack:mac
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
-      - name: Compute SHA-256
+      - name: Verify macOS update metadata
         shell: bash
         run: |
+          set -euo pipefail
           cd release
-          shasum -a 256 ChatGPT-Multitask-macOS-arm64.* > SHA256SUMS-mac.txt
+          VERSION="${{ needs.validate-tag.outputs.version }}"
+          test -f latest-mac.yml || { echo "latest-mac.yml missing"; exit 1; }
+          grep -q "version: ${VERSION}" latest-mac.yml || { echo "latest-mac.yml version mismatch"; exit 1; }
+          grep -E '^\s+- url:' latest-mac.yml | sed -E 's/^\s+- url:\s*//' | while read -r f; do
+            test -f "$f" || { echo "latest-mac.yml references missing file: $f"; exit 1; }
+          done
 
       - name: Upload macOS Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-macos
-          path: release/*.*
+          if-no-files-found: error
+          path: |
+            release/ChatGPT-Multitask-macOS-arm64.dmg
+            release/ChatGPT-Multitask-macOS-arm64.zip
+            release/ChatGPT-Multitask-macOS-x64.dmg
+            release/ChatGPT-Multitask-macOS-x64.zip
+            release/latest-mac.yml
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [validate-tag, release-windows, release-macos]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-windows
+          path: dist-artifacts
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-macos
+          path: dist-artifacts
+
+      - name: Create combined checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist-artifacts
+          ls -la
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.validate-tag.outputs.tag }}
+          VERSION: ${{ needs.validate-tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            dist-artifacts/ChatGPT-Multitask-Windows-x64-Setup.exe \
+            dist-artifacts/ChatGPT-Multitask-Windows-x64-Setup.exe.blockmap \
+            dist-artifacts/latest.yml \
+            dist-artifacts/ChatGPT-Multitask-macOS-arm64.dmg \
+            dist-artifacts/ChatGPT-Multitask-macOS-arm64.zip \
+            dist-artifacts/ChatGPT-Multitask-macOS-x64.dmg \
+            dist-artifacts/ChatGPT-Multitask-macOS-x64.zip \
+            dist-artifacts/latest-mac.yml \
+            dist-artifacts/SHA256SUMS.txt \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "ChatGPT Multitask v${VERSION}" \
+            --generate-notes \
+            --verify-tag

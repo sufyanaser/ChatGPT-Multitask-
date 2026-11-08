@@ -15,6 +15,26 @@ const DEFAULT_BROWSER_URL = 'https://www.google.com';
 const BROWSER_HEADER_HEIGHT = 38;
 const TAB_BAR_HEIGHT = 44;
 
+/**
+ * ERR_ABORTED / ERR_FAILED(-2) rejections from loadURL are the normal result of
+ * stopping a navigation because its view was closed, replaced, or the app is
+ * shutting down. They are teardown cancellations, not navigation failures.
+ */
+function isExpectedNavigationCancellation(err: unknown, destroyed: boolean): boolean {
+  if (destroyed) return true;
+  const message = String((err as any)?.message || err || '');
+  return /ERR_ABORTED|ERR_FAILED\s*\(-2\)|stopped loading|aborted/i.test(message);
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 interface ManagedBrowserTab {
   id: string;
   view: WebContentsView;
@@ -36,6 +56,7 @@ export class SideBrowserManager {
   private storePath: string;
   private persistTimer: NodeJS.Timeout | null = null;
   private onLayoutChangeCallback?: (mode: LayoutMode, ratio: number) => void;
+  private isDestroyed = false;
 
   constructor(window: BrowserWindow) {
     this.window = window;
@@ -121,7 +142,9 @@ export class SideBrowserManager {
     // Format & load initial URL
     const targetUrl = this.formatNavigationUrl(url);
     view.webContents.loadURL(targetUrl).catch(err => {
-      console.warn(`[SideBrowserManager] Failed to load ${targetUrl}:`, err?.message || err);
+      if (!isExpectedNavigationCancellation(err, this.isDestroyed)) {
+        console.warn(`[SideBrowserManager] Failed to load ${targetUrl}:`, err?.message || err);
+      }
     });
 
     if (selectAfterCreation || this.tabs.length === 1) {
@@ -171,10 +194,10 @@ export class SideBrowserManager {
       if (this.activeTabId === tabId) {
         this.window.contentView.removeChildView(toClose.view);
       }
-      (toClose.view.webContents as any).close?.();
     } catch (err) {
-      console.warn('[SideBrowserManager] Error closing webContents:', err);
+      console.warn('[SideBrowserManager] Error detaching closed view:', err);
     }
+    this.destroyView(toClose);
 
     this.tabs.splice(index, 1);
 
@@ -194,13 +217,51 @@ export class SideBrowserManager {
     this.persistState();
   }
 
+  /** Releases listeners and the WebContents for a tab that is being removed. */
+  private destroyView(tab: ManagedBrowserTab): void {
+    const wc = tab.view.webContents;
+    try {
+      if (!wc.isDestroyed()) {
+        wc.close({ waitForBeforeUnload: false });
+      }
+    } catch (err) {
+      console.warn('[SideBrowserManager] Error releasing webContents:', err);
+    }
+  }
+
+  /** Persists state immediately (used before quit/update restart). */
+  public flushPersistState(): void {
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer);
+      this.persistTimer = null;
+    }
+    this.writePersistedState();
+  }
+
+  /** Tears down every tab and pending timer. Safe to call more than once. */
+  public destroy(): void {
+    if (this.isDestroyed) return;
+    this.isDestroyed = true;
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer);
+      this.persistTimer = null;
+    }
+    for (const tab of this.tabs) {
+      this.destroyView(tab);
+    }
+    this.tabs = [];
+    this.activeTabId = null;
+  }
+
   public navigate(tabId: string | undefined, inputUrl: string): void {
     const tab = tabId ? this.tabs.find(t => t.id === tabId) : this.getActiveTab();
     if (!tab) return;
 
     const targetUrl = this.formatNavigationUrl(inputUrl);
     tab.view.webContents.loadURL(targetUrl).catch(err => {
-      console.warn(`[SideBrowserManager] Failed to navigate to ${targetUrl}:`, err);
+      if (!isExpectedNavigationCancellation(err, this.isDestroyed)) {
+        console.warn(`[SideBrowserManager] Failed to navigate to ${targetUrl}:`, err);
+      }
     });
   }
 
@@ -236,12 +297,12 @@ export class SideBrowserManager {
       if (!isAttached) {
         try {
           this.window.contentView.addChildView(active.view);
+          active.view.webContents.focus();
         } catch (err) {
           console.error('[SideBrowserManager] Failed to attach child view:', err);
         }
       }
       this.updateActiveViewBounds();
-      active.view.webContents.focus();
     } else {
       if (isAttached) {
         try {
@@ -333,18 +394,23 @@ export class SideBrowserManager {
     const wc = tab.view.webContents;
 
     wc.on('will-navigate', (event, url) => {
-      if (!/^https?:\/\//i.test(url)) {
+      if (!isHttpUrl(url)) {
         event.preventDefault();
-        shell.openExternal(url);
+        // Only well-known external schemes are handed to the OS.
+        if (/^(mailto|tel|sms):/i.test(url)) {
+          shell.openExternal(url);
+        }
       }
     });
 
     wc.setWindowOpenHandler(({ url }) => {
-      if (/^https?:\/\//i.test(url)) {
+      if (isHttpUrl(url)) {
         this.createTab(url, true);
         return { action: 'deny' };
       }
-      shell.openExternal(url);
+      if (/^(mailto|tel|sms):/i.test(url)) {
+        shell.openExternal(url);
+      }
       return { action: 'deny' };
     });
 
@@ -389,9 +455,14 @@ export class SideBrowserManager {
     const trimmed = (input || '').trim();
     if (!trimmed) return DEFAULT_BROWSER_URL;
 
-    // Check if it already has protocol
-    if (/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmed)) {
-      return trimmed;
+    // Explicit schemes: only HTTP(S) may be loaded inside the browser view.
+    if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed)) {
+      if (isHttpUrl(trimmed)) {
+        return trimmed;
+      }
+      // Unknown or dangerous schemes are treated as a search query rather than
+      // being passed to the privileged loadURL API.
+      return `https://www.google.com/search?q=${encodeURIComponent(trimmed)}`;
     }
 
     // Check if it's a domain name (e.g. github.com, docs.python.org, localhost:3000)
@@ -411,27 +482,32 @@ export class SideBrowserManager {
   }
 
   private notifyStateChanged(): void {
-    if (this.window.isDestroyed()) return;
+    if (this.isDestroyed || this.window.isDestroyed()) return;
     this.window.webContents.send(IPC_CHANNELS.BROWSER_STATE_UPDATE, this.getStatePayload());
   }
 
   private persistState(): void {
+    if (this.isDestroyed) return;
     if (this.persistTimer) {
       clearTimeout(this.persistTimer);
     }
     this.persistTimer = setTimeout(() => {
       this.persistTimer = null;
-      try {
-        const payload: BrowserPersistedState = {
-          tabs: this.tabs.map(t => ({ id: t.id, url: t.url, title: t.title })),
-          activeTabId: this.activeTabId,
-          layoutMode: this.layoutMode,
-          splitRatio: this.splitRatio
-        };
-        fs.writeFileSync(this.storePath, JSON.stringify(payload, null, 2), 'utf-8');
-      } catch (err) {
-        console.warn('[SideBrowserManager] Failed to persist browser state:', err);
-      }
+      this.writePersistedState();
     }, 400);
+  }
+
+  private writePersistedState(): void {
+    try {
+      const payload: BrowserPersistedState = {
+        tabs: this.tabs.map(t => ({ id: t.id, url: t.url, title: t.title })),
+        activeTabId: this.activeTabId,
+        layoutMode: this.layoutMode,
+        splitRatio: this.splitRatio
+      };
+      fs.writeFileSync(this.storePath, JSON.stringify(payload, null, 2), 'utf-8');
+    } catch (err) {
+      console.warn('[SideBrowserManager] Failed to persist browser state:', err);
+    }
   }
 }

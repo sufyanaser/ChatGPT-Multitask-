@@ -6,10 +6,18 @@ on:
   pull_request:
     branches: [develop, main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate-and-build-windows:
     name: Windows x64 Build & Test
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,18 +42,43 @@ jobs:
       - name: Build and package Windows installer
         run: npm run pack:win
 
-      - name: Compute SHA-256 Checksum
+      - name: Verify installer, checksum, and update metadata
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           $installer = Get-Item "release\ChatGPT-Multitask-Windows-x64-Setup.exe"
+          $blockmap = Get-Item "release\ChatGPT-Multitask-Windows-x64-Setup.exe.blockmap"
+          $latestPath = "release\latest.yml"
+          if (-not (Test-Path $latestPath)) { throw "latest.yml was not generated" }
+          $latest = Get-Content $latestPath -Raw
+          $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
+          if ($latest -notmatch "version:\s*$([regex]::Escape($pkg.version))") {
+            throw "latest.yml version does not match package.json ($($pkg.version))"
+          }
+          if ($latest -notmatch [regex]::Escape($installer.Name)) {
+            throw "latest.yml does not reference $($installer.Name)"
+          }
+          if ($latest -notmatch "size:\s*$($installer.Length)\b") {
+            throw "latest.yml size does not match installer ($($installer.Length) bytes)"
+          }
+          $sha512 = [Convert]::ToBase64String(
+            [System.Security.Cryptography.SHA512]::Create().ComputeHash(
+              [System.IO.File]::ReadAllBytes($installer.FullName)
+            )
+          )
+          if ($latest -notmatch [regex]::Escape($sha512)) {
+            throw "latest.yml sha512 does not match installer contents"
+          }
           $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash
           Write-Host "Installer SHA-256: $hash"
+          Write-Host "Blockmap bytes: $($blockmap.Length)"
           "$hash  $($installer.Name)" | Out-File -Encoding utf8 "release\SHA256SUMS-win.txt"
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ChatGPT-Multitask-Windows-x64
+          if-no-files-found: error
           path: |
             release/ChatGPT-Multitask-Windows-x64-Setup.exe
             release/ChatGPT-Multitask-Windows-x64-Setup.exe.blockmap
@@ -53,8 +86,9 @@ jobs:
             release/SHA256SUMS-win.txt
 
   validate-and-build-macos:
-    name: macOS arm64 Build & Test
+    name: macOS arm64 + x64 Build & Test
     runs-on: macos-latest
+    timeout-minutes: 60
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -79,19 +113,36 @@ jobs:
       - name: Build and package macOS distribution
         run: npm run pack:mac
 
-      - name: Compute SHA-256 Checksum
+      - name: Verify artifacts and update metadata
         shell: bash
         run: |
+          set -euo pipefail
           cd release
-          shasum -a 256 ChatGPT-Multitask-macOS-arm64.* > SHA256SUMS-mac.txt
+          for arch in arm64 x64; do
+            test -f "ChatGPT-Multitask-macOS-${arch}.dmg" || { echo "Missing DMG for ${arch}"; exit 1; }
+            test -f "ChatGPT-Multitask-macOS-${arch}.zip" || { echo "Missing ZIP for ${arch}"; exit 1; }
+          done
+          test -f latest-mac.yml || { echo "latest-mac.yml was not generated"; exit 1; }
+          VERSION=$(node -p "require('../package.json').version")
+          grep -q "version: ${VERSION}" latest-mac.yml || { echo "latest-mac.yml version mismatch"; exit 1; }
+          # Every referenced update payload must exist next to the metadata file.
+          grep -E '^\s+- url:' latest-mac.yml | sed -E 's/^\s+- url:\s*//' | while read -r f; do
+            test -f "$f" || { echo "latest-mac.yml references missing file: $f"; exit 1; }
+          done
+          shasum -a 256 ChatGPT-Multitask-macOS-arm64.dmg ChatGPT-Multitask-macOS-arm64.zip \
+                          ChatGPT-Multitask-macOS-x64.dmg ChatGPT-Multitask-macOS-x64.zip \
+                          > SHA256SUMS-mac.txt
           cat SHA256SUMS-mac.txt
 
       - name: Upload macOS Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ChatGPT-Multitask-macOS-arm64
+          name: ChatGPT-Multitask-macOS
+          if-no-files-found: error
           path: |
             release/ChatGPT-Multitask-macOS-arm64.dmg
             release/ChatGPT-Multitask-macOS-arm64.zip
+            release/ChatGPT-Multitask-macOS-x64.dmg
+            release/ChatGPT-Multitask-macOS-x64.zip
             release/latest-mac.yml
             release/SHA256SUMS-mac.txt

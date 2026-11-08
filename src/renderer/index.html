@@ -86,8 +86,8 @@
         </svg>
       </button>
 
-      <!-- Check for Updates (UX-004) -->
-      <button id="btn-updates" class="nav-btn updates-btn" title="Check for Updates" aria-label="Check for Updates">
+      <!-- Check for Updates (UX-004 / UX-008) -->
+      <button id="btn-updates" class="nav-btn updates-btn" title="Check for Updates" aria-label="Check for Updates" aria-haspopup="dialog" aria-expanded="false">
         <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="8" cy="8" r="6"></circle>
           <polyline points="8 5 8 8 10 10"></polyline>
@@ -162,30 +162,126 @@
     </div>
   </div>
 
-  <!-- Update Modal Dialog (UX-004) -->
-  <div id="update-modal" class="modal-backdrop hidden">
-    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-update-title">
-      <div class="modal-header">
-        <h3 id="modal-update-title" class="modal-title">ChatGPT Multitask Update</h3>
-        <button id="btn-modal-close" class="modal-close-btn" aria-label="Close modal">&times;</button>
+  <!-- UX-008: Native Anchored Update Popover (F05, F06) -->
+  <div id="update-popover" class="update-popover hidden" role="dialog" aria-label="Software Update" aria-modal="false">
+    <!-- Popover Header -->
+    <div class="update-popover-header">
+      <div class="update-popover-title-row">
+        <svg class="update-popover-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8" cy="8" r="6"></circle>
+          <polyline points="8 5 8 8 10 10"></polyline>
+        </svg>
+        <span id="update-popover-title" class="update-popover-title">ChatGPT Multitask</span>
+        <span id="update-current-version-badge" class="update-version-badge">v0.2.0</span>
       </div>
-      <div class="modal-body">
-        <div class="update-version-row">
-          <span class="version-label">Installed Version:</span>
-          <span id="label-current-version" class="version-badge">0.1.0</span>
+      <button id="btn-popover-close" class="update-popover-close-btn" title="Close" aria-label="Close Popover">&times;</button>
+    </div>
+
+    <!-- Popover Body with Panels for 7 States -->
+    <div id="update-popover-body" class="update-popover-body">
+
+      <!-- State 1: IDLE -->
+      <div id="state-idle" class="update-state-panel">
+        <div class="update-state-icon-row">
+          <svg viewBox="0 0 16 16" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="8" cy="8" r="6"></circle>
+            <polyline points="8 5 8 8 10 10"></polyline>
+          </svg>
         </div>
-        <div id="update-status-box" class="update-status-box">
-          <p id="label-update-status" class="status-text">Click "Check for Updates" to verify latest releases.</p>
+        <div class="update-state-heading">Software Updates</div>
+        <p class="update-state-desc">Check for new versions, stability improvements, and security updates from official GitHub releases.</p>
+        <div class="update-version-meta">Installed version: <span class="update-meta-version">v0.2.0</span></div>
+      </div>
+
+      <!-- State 2: CHECKING -->
+      <div id="state-checking" class="update-state-panel hidden">
+        <div class="update-spinner-container">
+          <div class="update-spinner" role="status" aria-label="Checking for updates"></div>
         </div>
-        <div id="update-notes-box" class="update-notes-box hidden">
-          <p class="notes-heading">Release Information:</p>
-          <div id="label-release-notes" class="notes-content"></div>
+        <div class="update-state-heading">Checking for Updates...</div>
+        <p class="update-state-desc">Connecting to official releases repository to verify latest version status...</p>
+      </div>
+
+      <!-- State 3: UP TO DATE -->
+      <div id="state-up-to-date" class="update-state-panel hidden">
+        <div class="update-state-icon-row update-status-emerald">
+          <svg viewBox="0 0 16 16" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="8" cy="8" r="7"></circle>
+            <polyline points="5 8.5 7 10.5 11 5.5"></polyline>
+          </svg>
+        </div>
+        <div class="update-state-heading">You're Up to Date</div>
+        <p class="update-state-desc">ChatGPT Multitask <strong id="uptodate-version">v0.2.0</strong> is currently the newest version available.</p>
+        <div id="uptodate-timestamp" class="update-timestamp-meta">Checked today</div>
+      </div>
+
+      <!-- State 4: UPDATE AVAILABLE -->
+      <div id="state-available" class="update-state-panel hidden">
+        <div class="update-state-icon-row update-status-blue">
+          <svg viewBox="0 0 16 16" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 2v9M4 8l4 4 4-4M2 14h12"></path>
+          </svg>
+        </div>
+        <div class="update-state-heading">Update Available!</div>
+        <div class="update-version-diff">
+          <span id="diff-current-ver" class="ver-pill ver-current">v0.2.0</span>
+          <span class="diff-arrow">→</span>
+          <span id="diff-latest-ver" class="ver-pill ver-latest">v0.2.0</span>
+        </div>
+        <div class="update-notes-container">
+          <div class="update-notes-title">Release Notes:</div>
+          <div id="update-release-notes" class="update-notes-content"></div>
         </div>
       </div>
-      <div class="modal-footer">
-        <button id="btn-check-updates-now" class="modal-btn modal-btn-primary">Check for Updates</button>
-        <button id="btn-modal-dismiss" class="modal-btn modal-btn-secondary">Close</button>
+
+      <!-- State 5: DOWNLOADING -->
+      <div id="state-downloading" class="update-state-panel hidden">
+        <div class="update-state-icon-row update-status-blue">
+          <svg viewBox="0 0 16 16" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 2v8M5 7l3 3 3-3M2 13h12"></path>
+          </svg>
+        </div>
+        <div class="update-state-heading">Downloading Update...</div>
+        <div class="update-progress-track">
+          <div id="update-progress-bar" class="update-progress-fill" style="width: 0%;"></div>
+        </div>
+        <div class="update-progress-stats">
+          <span id="download-progress-percent">0%</span>
+          <span id="download-progress-bytes">Preparing download...</span>
+        </div>
       </div>
+
+      <!-- State 6: READY TO INSTALL -->
+      <div id="state-ready" class="update-state-panel hidden">
+        <div class="update-state-icon-row update-status-emerald">
+          <svg viewBox="0 0 16 16" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="8" cy="8" r="7"></circle>
+            <polyline points="5 8.5 7 10.5 11 5.5"></polyline>
+          </svg>
+        </div>
+        <div class="update-state-heading">Ready to Install</div>
+        <p class="update-state-desc">Update has been verified and downloaded. Restart the application now to complete installation.</p>
+      </div>
+
+      <!-- State 7: ERROR -->
+      <div id="state-error" class="update-state-panel hidden">
+        <div class="update-state-icon-row update-status-amber">
+          <svg viewBox="0 0 16 16" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="8" cy="8" r="7"></circle>
+            <line x1="8" y1="5" x2="8" y2="9"></line>
+            <circle cx="8" cy="11.5" r="0.6" fill="currentColor"></circle>
+          </svg>
+        </div>
+        <div class="update-state-heading">Update Check Failed</div>
+        <p id="update-error-message" class="update-state-desc update-error-desc">Unable to reach update server.</p>
+      </div>
+
+    </div>
+
+    <!-- Popover Footer with Actions -->
+    <div id="update-popover-footer" class="update-popover-footer">
+      <button id="btn-update-action-primary" class="popover-btn popover-btn-primary">Check for Updates</button>
+      <button id="btn-update-action-secondary" class="popover-btn popover-btn-secondary hidden">Later</button>
     </div>
   </div>
 
