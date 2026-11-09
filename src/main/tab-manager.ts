@@ -768,19 +768,30 @@ export class TabManager {
     });
 
     // P0: Arabic RTL Answer Rendering support
-    const injectRtlSupport = (): void => {
+    // Inserted CSS lives for the lifetime of the document, so it is added once
+    // per document (dom-ready). Re-inserting on every in-page navigation would
+    // stack a duplicate stylesheet for each conversation switch.
+    const injectRtlCss = (): void => {
       if (wc.isDestroyed()) return;
       wc.insertCSS(RTL_SCOPED_CSS).catch(err => {
         console.warn(`[TabManager] Failed to insert RTL CSS on tab ${tab.id}:`, err);
       });
+    };
+    // The observer script is idempotent (guarded by a window flag), so it is
+    // safe to re-run as a recovery path after load and in-page navigations.
+    const injectRtlObserver = (): void => {
+      if (wc.isDestroyed()) return;
       wc.executeJavaScript(RTL_OBSERVER_SCRIPT).catch(err => {
         console.warn(`[TabManager] Failed to inject RTL observer on tab ${tab.id}:`, err);
       });
     };
 
-    wc.on('dom-ready', injectRtlSupport);
-    wc.on('did-finish-load', injectRtlSupport);
-    wc.on('did-navigate-in-page', injectRtlSupport);
+    wc.on('dom-ready', () => {
+      injectRtlCss();
+      injectRtlObserver();
+    });
+    wc.on('did-finish-load', injectRtlObserver);
+    wc.on('did-navigate-in-page', injectRtlObserver);
 
     // Keyboard shortcuts forwarded from webview content
     wc.on('before-input-event', (event, input) => {

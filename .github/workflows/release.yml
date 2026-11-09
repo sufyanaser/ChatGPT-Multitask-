@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Existing release tag (e.g. v0.2.1)'
+        description: 'Existing release tag (e.g. v3.0.0)'
         required: true
-        default: 'v0.2.1'
+        default: 'v3.0.0'
 
 permissions:
   contents: read
@@ -233,10 +233,11 @@ jobs:
           VERSION: ${{ needs.validate-tag.outputs.version }}
         run: |
           set -euo pipefail
-          # Pre-1.0 (0.x) releases are published as GitHub pre-releases, so they
+          # Pre-1.0 (0.x) versions and versions with a pre-release suffix
+          # (e.g. 3.1.0-beta.1) are published as GitHub pre-releases, so they
           # are not offered as "latest" and are not treated as stable.
           PRERELEASE_FLAG=""
-          if [[ "$VERSION" == 0.* ]]; then
+          if [[ "$VERSION" == 0.* || "$VERSION" == *-* ]]; then
             PRERELEASE_FLAG="--prerelease"
           fi
           gh release create "$TAG" $PRERELEASE_FLAG \

@@ -6,13 +6,14 @@ Never publish from failing code, and never merge an unverified branch into
 
 ## Versioning
 
-The project uses Semantic Versioning. Before 1.0, a minor bump indicates
-user-visible features or behaviour changes.
+The project uses Semantic Versioning. `3.0.0` is the first stable release.
+Versions below 1.0 and versions with a pre-release suffix (for example
+`3.1.0-beta.1`) are published as GitHub pre-releases.
 
 1. Update `version` in `package.json`:
 
    ```bash
-   npm version 0.2.0 --no-git-tag-version
+   npm version 3.0.0 --no-git-tag-version
    ```
 
 2. Update `CHANGELOG.md` with the release date and a complete change list.
@@ -32,6 +33,22 @@ npm run pack:win
 `npm test` must pass every gate: unit, Electron smoke, theme/zoom, tab
 indicators, stabilization, Arabic RTL acceptance, RTL stress, and update
 pipeline integrity.
+
+The WebContentsView layering gate (OS-level pointer input) only runs on Linux
+with `xdotool` under an X display and is skipped on Windows and macOS runners.
+Before tagging, complete the manual Windows checklist below and record the
+result; a green CI run does not cover it.
+
+### Manual Windows checklist (signed-in ChatGPT session)
+
+- Search and Sidebar toggle respond to clicks (wide, narrow and split layouts).
+- New chat, Pinned / Projects / Recents and the account menu respond.
+- The window drags from the tab bar; minimize / maximize / close work;
+  dragging inside the ChatGPT page does not move the window.
+- The split divider follows the pointer over both panes and resizes live.
+- 20+ tabs: strip scrolls, active tab stays visible, reorder after a close.
+- Restart restores tabs; background tabs load on first selection.
+- Light, Dark and Follow System; right-click menus in both views.
 
 ## Artifacts
 
@@ -58,8 +75,8 @@ The WASM and Node-native dependency set does not require extra runtime files.
 2. Create and push a tag that matches the package version:
 
    ```bash
-   git tag v0.2.0
-   git push origin v0.2.0
+   git tag v3.0.0
+   git push origin v3.0.0
    ```
 
 3. The `Release` workflow (`.github/workflows/release.yml`):
