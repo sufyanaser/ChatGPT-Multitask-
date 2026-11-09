@@ -9,12 +9,17 @@ import {
   LayoutMode,
   SPLIT_GUTTER_PX
 } from '../common/types';
-import { TabManager } from './tab-manager';
+import { TabManager, TAB_BAR_HEIGHT } from './tab-manager';
 import { SideBrowserManager } from './side-browser-manager';
 import { SettingsStore } from './settings-store';
 import { AppUpdater } from './auto-updater';
 
 const MIN_CONTENT_WIDTH_PX = 240;
+
+/** Tab bar surface; must match --bg-bar in src/renderer/index.css. */
+function chromeColor(isDark: boolean): string {
+  return isDark ? '#181818' : '#f3f3f3';
+}
 
 export class WindowManager {
   private window: BrowserWindow | null = null;
@@ -51,15 +56,15 @@ export class WindowManager {
       minWidth: 800,
       minHeight: 600,
       title: 'ChatGPT Multitask',
-      backgroundColor: isDark ? '#212121' : '#f9f9f9',
+      backgroundColor: chromeColor(isDark),
       icon: iconPath,
       titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
       titleBarOverlay: isMac
         ? undefined
         : {
-            color: isDark ? '#212121' : '#f9f9f9',
+            color: chromeColor(isDark),
             symbolColor: isDark ? '#ffffff' : '#0d0d0d',
-            height: 44
+            height: TAB_BAR_HEIGHT
           },
       trafficLightPosition: isMac ? { x: 16, y: 15 } : undefined,
       webPreferences: {
@@ -92,7 +97,10 @@ export class WindowManager {
     );
 
     this.sideBrowserManager.setOnLayoutChange((layoutMode, splitRatio) => {
-      this.settingsStore.save({ layoutMode, splitRatio });
+      // Live divider drags emit a ratio per frame; persist once on release.
+      if (!this.splitDragging) {
+        this.settingsStore.save({ layoutMode, splitRatio });
+      }
       this.updateLayoutBounds();
     });
 
@@ -142,8 +150,9 @@ export class WindowManager {
   /**
    * Single layout authority for the tab bar, chat view and side browser.
    * - Views are separated by SPLIT_GUTTER_PX so the renderer divider is hittable.
-   * - While the divider is dragged, all WebContentsViews are detached so the
-   *   root renderer receives pointer events for the whole window.
+   * - Views stay attached while the divider is dragged: the renderer holds
+   *   mouse capture from the gutter mousedown, so it keeps receiving moves over
+   *   the views and both panes resize live.
    * - Root-level overlays (update popover) reserve a right-edge strip.
    */
   public updateLayoutBounds(): void {
@@ -153,13 +162,13 @@ export class WindowManager {
     const bounds = this.window.getContentBounds();
     const totalW = bounds.width;
     const totalH = bounds.height;
-    const contentH = Math.max(0, totalH - 44);
+    const contentH = Math.max(0, totalH - TAB_BAR_HEIGHT);
     const reserved = Math.min(this.overlayReserveWidth, Math.max(0, totalW - MIN_CONTENT_WIDTH_PX));
 
     const workW = Math.max(0, totalW - reserved);
-    this.sideBrowserManager?.setLayoutConstraints(reserved, this.splitDragging);
+    this.sideBrowserManager?.setLayoutConstraints(reserved, false);
 
-    if (this.splitDragging || mode === 'browser-only') {
+    if (mode === 'browser-only') {
       this.tabManager?.setActiveViewVisible(false);
       this.sideBrowserManager?.updateActiveViewAttachment();
       return;
@@ -169,7 +178,7 @@ export class WindowManager {
       this.tabManager?.setActiveViewVisible(true);
       this.tabManager?.updateActiveViewBounds({
         x: 0,
-        y: 44,
+        y: TAB_BAR_HEIGHT,
         width: workW,
         height: contentH
       });
@@ -178,7 +187,7 @@ export class WindowManager {
       this.tabManager?.setActiveViewVisible(true);
       this.tabManager?.updateActiveViewBounds({
         x: 0,
-        y: 44,
+        y: TAB_BAR_HEIGHT,
         width: Math.max(0, splitX - Math.ceil(SPLIT_GUTTER_PX / 2)),
         height: contentH
       });
@@ -188,12 +197,17 @@ export class WindowManager {
 
   private beginSplitDrag(): void {
     this.splitDragging = true;
-    this.updateLayoutBounds();
   }
 
   private endSplitDrag(): void {
     if (!this.splitDragging) return;
     this.splitDragging = false;
+    if (this.sideBrowserManager) {
+      this.settingsStore.save({
+        layoutMode: this.sideBrowserManager.getLayoutMode(),
+        splitRatio: this.sideBrowserManager.getSplitRatio()
+      });
+    }
     this.updateLayoutBounds();
   }
 
@@ -286,9 +300,9 @@ export class WindowManager {
       const isDark = nativeTheme.shouldUseDarkColors;
       try {
         this.window.setTitleBarOverlay({
-          color: isDark ? '#212121' : '#f9f9f9',
+          color: chromeColor(isDark),
           symbolColor: isDark ? '#ffffff' : '#0d0d0d',
-          height: 44
+          height: TAB_BAR_HEIGHT
         });
       } catch (e) {
         console.error('[WindowManager] Failed to update titleBarOverlay:', e);
@@ -300,7 +314,7 @@ export class WindowManager {
     nativeTheme.on('updated', () => {
       if (!this.window || this.window.isDestroyed()) return;
       const isDark = nativeTheme.shouldUseDarkColors;
-      this.window.setBackgroundColor(isDark ? '#212121' : '#f9f9f9');
+      this.window.setBackgroundColor(chromeColor(isDark));
       this.updateTitleBarOverlay();
       this.notifyThemeChanged();
       this.setupApplicationMenu();
@@ -344,7 +358,7 @@ export class WindowManager {
       this.settingsStore.save({ themeMode: mode });
       if (this.window && !this.window.isDestroyed()) {
         const isDark = nativeTheme.shouldUseDarkColors;
-        this.window.setBackgroundColor(isDark ? '#212121' : '#f9f9f9');
+        this.window.setBackgroundColor(chromeColor(isDark));
         this.updateTitleBarOverlay();
       }
       this.notifyThemeChanged();

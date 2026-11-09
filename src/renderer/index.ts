@@ -66,6 +66,8 @@ class AppViewController {
   private currentSplitRatio: number = 0.5;
   private overlayReservePx: number = 0;
   private draggedTabIndex: number | null = null;
+  private hasRenderedTabs: boolean = false;
+  private lastTabLayoutKey: string = '';
   private isResizingSplit: boolean = false;
   private isUrlInputFocused: boolean = false;
   private lastCheckedUpdate: UpdateInfoPayload | null = null;
@@ -316,6 +318,21 @@ class AppViewController {
       window.api?.createTab();
     });
 
+    // Tab strip overflow: vertical wheel scrolls the strip, edges fade while
+    // more tabs exist in that direction.
+    this.tabsListEl.addEventListener('wheel', (e) => {
+      if (this.tabsListEl.scrollWidth <= this.tabsListEl.clientWidth) return;
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (delta === 0) return;
+      e.preventDefault();
+      this.tabsListEl.scrollLeft += delta;
+    }, { passive: false });
+    this.tabsListEl.addEventListener('scroll', () => this.updateTabOverflowState(), { passive: true });
+    new ResizeObserver(() => {
+      this.updateTabOverflowState();
+      this.revealActiveTab();
+    }).observe(this.tabsListEl);
+
     this.btnBack.addEventListener('click', () => {
       window.api?.navigateBack();
     });
@@ -465,19 +482,32 @@ class AppViewController {
   private bindSplitDividerEvents(): void {
     if (!this.splitDivider) return;
 
-    // While dragging, main detaches the WebContentsViews, so this document is the
-    // only recipient of pointer events. The divider moves live via CSS; the
-    // final ratio is committed on release, which also re-attaches the views.
+    // The views stay attached during the drag. The mousedown on the gutter
+    // gives this document mouse capture, so moves keep arriving while the
+    // cursor is over a WebContentsView. Ratios are pushed to main at most once
+    // per frame so both panes resize live; main persists once on release.
+    let pushScheduled = false;
+    const pushRatio = () => {
+      pushScheduled = false;
+      if (this.isResizingSplit) window.api?.setSplitRatio?.(this.currentSplitRatio);
+    };
+
     const onMouseMove = (e: MouseEvent) => {
       if (!this.isResizingSplit) return;
       const winWidth = this.workspaceWidth();
       if (winWidth <= 0) return;
 
       const rawRatio = e.clientX / winWidth;
-      const clampedRatio = Math.max(0.2, Math.min(0.8, Math.round(rawRatio * 1000) / 1000));
+      // Same 0.01 grid main clamps to, so the divider and the views agree.
+      const clampedRatio = Math.max(0.2, Math.min(0.8, Math.round(rawRatio * 100) / 100));
+      if (clampedRatio === this.currentSplitRatio) return;
       this.currentSplitRatio = clampedRatio;
 
       this.applySplitVar(clampedRatio);
+      if (!pushScheduled) {
+        pushScheduled = true;
+        requestAnimationFrame(pushRatio);
+      }
     };
 
     const endDrag = () => {
@@ -1118,6 +1148,8 @@ class AppViewController {
       if (!tabEl) {
         // Create new tab element
         tabEl = this.createTabElement(tab, index, isActive);
+        // Animate only tabs opened after the first paint, not the restored set.
+        if (this.hasRenderedTabs) tabEl.classList.add('tab-enter');
         this.tabsListEl.appendChild(tabEl);
       } else {
         // In-place patch existing element
@@ -1129,6 +1161,28 @@ class AppViewController {
         }
       }
     });
+
+    this.hasRenderedTabs = true;
+    const layoutKey = `${activeTabId}|${tabs.length}`;
+    if (layoutKey !== this.lastTabLayoutKey) {
+      this.lastTabLayoutKey = layoutKey;
+      this.revealActiveTab();
+    }
+    this.updateTabOverflowState();
+  }
+
+  private updateTabOverflowState(): void {
+    const el = this.tabsListEl;
+    const max = el.scrollWidth - el.clientWidth;
+    // scrollLeft is negative in RTL documents; compare by magnitude.
+    const pos = Math.abs(el.scrollLeft);
+    el.classList.toggle('overflow-start', max > 1 && pos > 1);
+    el.classList.toggle('overflow-end', max > 1 && pos < max - 1);
+  }
+
+  private revealActiveTab(): void {
+    const active = this.tabsListEl.querySelector('.tab-item.active') as HTMLElement | null;
+    active?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   private updateTabElement(tabEl: HTMLElement, tab: TabItem, index: number, isActive: boolean): void {
@@ -1224,12 +1278,24 @@ class AppViewController {
     });
 
     // Drag and Drop Tab Reordering
+    // Indices are read from dataset at event time: renderTabs() keeps
+    // data-index current, whereas the creation-time `index` goes stale after
+    // any close or reorder.
+    const liveIndex = (): number => Number(tabEl.dataset.index);
+
     tabEl.addEventListener('dragstart', (e) => {
-      this.draggedTabIndex = index;
+      this.draggedTabIndex = liveIndex();
+      tabEl.classList.add('dragging');
       if (e.dataTransfer) {
         e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', index.toString());
+        e.dataTransfer.setData('text/plain', String(this.draggedTabIndex));
       }
+    });
+
+    tabEl.addEventListener('dragend', () => {
+      tabEl.classList.remove('dragging');
+      this.draggedTabIndex = null;
+      this.tabsListEl.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
     });
 
     tabEl.addEventListener('dragover', (e) => {
@@ -1247,8 +1313,9 @@ class AppViewController {
     tabEl.addEventListener('drop', (e) => {
       e.preventDefault();
       tabEl.classList.remove('drag-over');
-      if (this.draggedTabIndex !== null && this.draggedTabIndex !== index) {
-        window.api?.reorderTabs(this.draggedTabIndex, index);
+      const targetIndex = liveIndex();
+      if (this.draggedTabIndex !== null && this.draggedTabIndex !== targetIndex) {
+        window.api?.reorderTabs(this.draggedTabIndex, targetIndex);
       }
       this.draggedTabIndex = null;
     });
@@ -1321,14 +1388,18 @@ class AppViewController {
   private renderBrowserState(state: BrowserStatePayload): void {
     const { layoutMode, splitRatio, tabs, activeTabId, visible } = state;
     this.currentLayoutMode = layoutMode;
-    this.currentSplitRatio = splitRatio;
+    // During a divider drag the pointer is the source of truth; main's echo
+    // can lag a frame behind and would make the divider jitter.
+    if (!this.isResizingSplit) {
+      this.currentSplitRatio = splitRatio;
+    }
 
     // Update body classes
     document.body.classList.remove('layout-chat-only', 'layout-split', 'layout-browser-only');
     document.body.classList.add(`layout-${layoutMode}`);
 
     // Update CSS variable for divider position
-    this.applySplitVar(splitRatio);
+    this.applySplitVar(this.currentSplitRatio);
 
     // Update Split Toggle Button State in main header
     if (this.btnSplitToggle) {

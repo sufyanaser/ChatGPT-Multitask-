@@ -4,9 +4,28 @@ import { TabItem, TabStatePayload, IPC_CHANNELS, ConversationType, TabTypeOverri
 import { SessionManager } from './session-manager';
 import { TabStateStore } from './tab-state-store';
 import { attachWebContextMenu } from './web-context-menu';
+import { neutralizeDragRegions } from './drag-region-guard';
 
 export const TAB_BAR_HEIGHT = 44;
 const DEFAULT_URL = 'https://chatgpt.com';
+
+/**
+ * Identity of a saved conversation URL (`…/c/<id>`, including project/GPT
+ * scoped paths), or null for anything else. Only conversation URLs are ever
+ * de-duplicated: the home page, GPT pickers and fresh chats must stay
+ * independent so several new conversations can be open side by side.
+ */
+export function conversationKey(urlStr: string): string | null {
+  try {
+    const parsed = new URL(urlStr);
+    if (parsed.protocol !== 'https:') return null;
+    const match = parsed.pathname.match(/\/c\/([A-Za-z0-9-]{8,})\/?$/);
+    if (!match) return null;
+    return `${parsed.hostname.toLowerCase()}/c/${match[1].toLowerCase()}`;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * P0 Scoped Arabic RTL & Bidirectional Layout Engine.
@@ -169,6 +188,8 @@ interface ManagedTab {
   favicon?: string;
   conversationType: ConversationType;
   typeOverride: TabTypeOverride;
+  /** Set while a restored tab has not been loaded yet (lazy restore). */
+  pendingUrl?: string;
 }
 
 export class TabManager {
@@ -314,7 +335,8 @@ export class TabManager {
     customId?: string,
     initialTitle?: string,
     typeOverride: TabTypeOverride = 'auto',
-    initialType?: ConversationType
+    initialType?: ConversationType,
+    deferLoad: boolean = false
   ): ManagedTab {
     const tabId = customId || randomUUID();
     const session = this.sessionManager.getSession();
@@ -344,23 +366,24 @@ export class TabManager {
       view,
       title: initialTitle || 'ChatGPT',
       url,
-      isLoading: true,
+      isLoading: !deferLoad,
       canGoBack: false,
       canGoForward: false,
       conversationType,
-      typeOverride
+      typeOverride,
+      pendingUrl: deferLoad ? url : undefined
     };
 
     this.setupViewListeners(newTab);
     this.tabs.push(newTab);
 
-    // Load URL
-    view.webContents.loadURL(url).catch(err => {
-      if (this.isNavigationCanceled(err)) return;
-      console.warn(`[TabManager] Failed to load URL ${url}:`, err);
-    });
+    if (!deferLoad) {
+      this.loadTabUrl(newTab, url);
+    }
 
-    if (selectAfterCreation || this.tabs.length === 1) {
+    // A deferred (lazily restored) tab is never auto-selected: the restore
+    // routine picks the active tab itself, so only that one navigates.
+    if (selectAfterCreation || (this.tabs.length === 1 && !deferLoad)) {
       this.selectTab(tabId);
     } else {
       this.notifyStateChanged();
@@ -368,6 +391,39 @@ export class TabManager {
     }
 
     return newTab;
+  }
+
+  private loadTabUrl(tab: ManagedTab, url: string): void {
+    tab.view.webContents.loadURL(url).catch(err => {
+      if (this.isNavigationCanceled(err)) return;
+      console.warn(`[TabManager] Failed to load URL ${url}:`, err);
+    });
+  }
+
+  /** Starts the deferred navigation of a lazily restored tab, once. */
+  private ensureTabLoaded(tab: ManagedTab): void {
+    if (!tab.pendingUrl) return;
+    const url = tab.pendingUrl;
+    tab.pendingUrl = undefined;
+    tab.isLoading = true;
+    this.loadTabUrl(tab, url);
+  }
+
+  /**
+   * Opens `url` for a link / window.open request. A conversation that is
+   * already open is focused instead of being duplicated; every other URL gets
+   * its own tab.
+   */
+  public openUrlInTab(url: string): void {
+    const key = conversationKey(url);
+    if (key) {
+      const existing = this.tabs.find(t => conversationKey(t.url) === key);
+      if (existing) {
+        this.selectTab(existing.id);
+        return;
+      }
+    }
+    this.createTab(url, true);
   }
 
   public selectTab(tabId: string): void {
@@ -390,6 +446,7 @@ export class TabManager {
     }
 
     this.activeTabId = tabId;
+    this.ensureTabLoaded(targetTab);
     if (this.isViewAttached) {
       try {
         this.window.contentView.addChildView(targetTab.view);
@@ -521,6 +578,11 @@ export class TabManager {
   public reloadTab(tabId?: string): void {
     const target = tabId ? this.tabs.find(t => t.id === tabId) : this.getActiveTab();
     if (target) {
+      if (target.pendingUrl) {
+        this.ensureTabLoaded(target);
+        this.notifyStateChanged();
+        return;
+      }
       target.view.webContents.reload();
     }
   }
@@ -620,7 +682,9 @@ export class TabManager {
     if (saved && saved.tabs.length > 0) {
       console.log(`[TabManager] Restoring ${saved.tabs.length} tabs from saved state`);
       for (const t of saved.tabs) {
-        this.createTab(t.url, false, t.id, t.title, t.typeOverride || 'auto', t.conversationType);
+        // Lazy restore: only the tab that becomes active navigates now; the
+        // others load on first selection so startup cost stays flat.
+        this.createTab(t.url, false, t.id, t.title, t.typeOverride || 'auto', t.conversationType, true);
       }
       const initialTabId = (saved.activeTabId && this.tabs.some(t => t.id === saved.activeTabId))
         ? saved.activeTabId
@@ -656,12 +720,14 @@ export class TabManager {
       getWindow: () => (this.window.isDestroyed() ? null : this.window),
       openLinkInNewTab: (url) => {
         if (this.sessionManager.isUrlAllowed(url)) {
-          this.createTab(url, true);
+          this.openUrlInTab(url);
         } else {
           this.openExternalSafely(url);
         }
       }
     });
+
+    neutralizeDragRegions(wc);
 
     // Strict navigation control
     wc.on('will-navigate', (event, url) => {
@@ -685,7 +751,7 @@ export class TabManager {
       }
 
       if (this.sessionManager.isUrlAllowed(url)) {
-        this.createTab(url, true);
+        this.openUrlInTab(url);
         return { action: 'deny' };
       }
       this.openExternalSafely(url);

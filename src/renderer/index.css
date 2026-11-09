@@ -8,13 +8,14 @@
 
 :root {
   /* Default Dark Mode (ChatGPT Modern Palette) */
-  --bg-bar: #212121;
+  --bg-bar: #181818;
   --border-bar: rgba(255, 255, 255, 0.08);
   --bg-tab: transparent;
   --bg-tab-hover: rgba(255, 255, 255, 0.06);
-  --bg-tab-active: #2f2f2f;
+  --bg-tab-active: #2c2c2c;
   --tab-border: transparent;
-  --tab-active-border: rgba(255, 255, 255, 0.12);
+  --tab-active-border: rgba(255, 255, 255, 0.10);
+  --tab-separator: rgba(255, 255, 255, 0.14);
   --tab-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   --text-primary: #ececec;
   --text-secondary: #b4b4b4;
@@ -27,14 +28,15 @@
 
 @media (prefers-color-scheme: light) {
   :root {
-    --bg-bar: #f9f9f9;
+    --bg-bar: #f3f3f3;
     --border-bar: rgba(0, 0, 0, 0.08);
     --bg-tab: transparent;
     --bg-tab-hover: rgba(0, 0, 0, 0.04);
     --bg-tab-active: #ffffff;
     --tab-border: transparent;
-    --tab-active-border: rgba(0, 0, 0, 0.08);
-    --tab-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    --tab-active-border: rgba(0, 0, 0, 0.10);
+  --tab-separator: rgba(0, 0, 0, 0.16);
+    --tab-shadow: 0 1px 2px rgba(0, 0, 0, 0.10), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
     --text-primary: #0d0d0d;
     --text-secondary: #5d5d5d;
     --text-muted: #9b9b9b;
@@ -47,14 +49,15 @@
 
 body.theme-light {
   /* Light Mode (ChatGPT Clean Modern Palette) */
-  --bg-bar: #f9f9f9;
+  --bg-bar: #f3f3f3;
   --border-bar: rgba(0, 0, 0, 0.08);
   --bg-tab: transparent;
   --bg-tab-hover: rgba(0, 0, 0, 0.04);
   --bg-tab-active: #ffffff;
   --tab-border: transparent;
-  --tab-active-border: rgba(0, 0, 0, 0.08);
-  --tab-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --tab-active-border: rgba(0, 0, 0, 0.10);
+  --tab-separator: rgba(0, 0, 0, 0.16);
+  --tab-shadow: 0 1px 2px rgba(0, 0, 0, 0.10), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
   --text-primary: #0d0d0d;
   --text-secondary: #5d5d5d;
   --text-muted: #9b9b9b;
@@ -65,13 +68,14 @@ body.theme-light {
 }
 
 body.theme-dark {
-  --bg-bar: #212121;
+  --bg-bar: #181818;
   --border-bar: rgba(255, 255, 255, 0.08);
   --bg-tab: transparent;
   --bg-tab-hover: rgba(255, 255, 255, 0.06);
-  --bg-tab-active: #2f2f2f;
+  --bg-tab-active: #2c2c2c;
   --tab-border: transparent;
-  --tab-active-border: rgba(255, 255, 255, 0.12);
+  --tab-active-border: rgba(255, 255, 255, 0.10);
+  --tab-separator: rgba(255, 255, 255, 0.14);
   --tab-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   --text-primary: #ececec;
   --text-secondary: #b4b4b4;
@@ -173,14 +177,26 @@ button:focus-visible, input:focus-visible, .tab-item:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+/* One optical size for every tab-bar glyph. */
+.tab-bar-container .nav-btn svg,
+.new-tab-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.nav-btn.active {
+  background-color: var(--btn-hover-bg);
+  color: var(--text-primary);
 }
 
 .nav-btn:hover:not(:disabled) {
@@ -201,7 +217,7 @@ button:focus-visible, input:focus-visible, .tab-item:focus-visible {
 .tabs-list {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   flex: 0 1 auto;
   min-width: 0;
   overflow-x: auto;
@@ -210,35 +226,80 @@ button:focus-visible, input:focus-visible, .tab-item:focus-visible {
   padding: 0 2px;
   -webkit-app-region: no-drag;
   scrollbar-width: none;
+  --fade-start: 0px;
+  --fade-end: 0px;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent 100%);
 }
+
+/* Edge fades signal that more tabs exist in that direction. */
+.tabs-list.overflow-start { --fade-start: 24px; }
+.tabs-list.overflow-end { --fade-end: 24px; }
 
 .tabs-list::-webkit-scrollbar {
   display: none;
 }
 
-/* Tab Item */
+/* Tab Item — shrinks from its ideal width down to a floor, then the strip scrolls. */
 .tab-item {
   display: flex;
   align-items: center;
   height: 32px;
-  min-width: 140px;
+  /* A definite width (not flex-basis) so the strip's intrinsic size counts the
+     full 200px per tab even though the tab is a size container. */
+  width: 200px;
+  flex: 0 1 auto;
+  min-width: 76px;
   max-width: 220px;
   padding-inline-start: 10px;
-  padding-inline-end: 8px;
+  padding-inline-end: 6px;
   background-color: var(--bg-tab);
   border: 1px solid var(--tab-border);
-  border-radius: 7px;
+  border-radius: 8px;
   font-size: 12.5px;
   color: var(--text-secondary);
-  cursor: pointer;
+  cursor: default;
   position: relative;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  container-type: inline-size;
+  scroll-margin-inline: 28px;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
   -webkit-app-region: no-drag;
+}
+
+/* The active tab always keeps a readable title. */
+.tab-item.active {
+  min-width: 132px;
+}
+
+/* Hairline separators between resting tabs; hidden next to hover/active. */
+.tab-item + .tab-item::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -2px;
+  top: 9px;
+  bottom: 9px;
+  width: 1px;
+  background-color: var(--tab-separator);
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+
+.tab-item.active::before,
+.tab-item.active + .tab-item::before,
+.tab-item:hover::before,
+.tab-item:hover + .tab-item::before,
+.tab-item:focus-visible::before,
+.tab-item:focus-visible + .tab-item::before {
+  opacity: 0;
 }
 
 .tab-item:hover:not(.active) {
   background-color: var(--bg-tab-hover);
   color: var(--text-primary);
+}
+
+.tab-item:active:not(.active) {
+  background-color: var(--btn-hover-bg);
 }
 
 .tab-item.active {
@@ -249,8 +310,32 @@ button:focus-visible, input:focus-visible, .tab-item:focus-visible {
   box-shadow: var(--tab-shadow);
 }
 
+.tab-item.dragging {
+  opacity: 0.55;
+}
+
 .tab-item.drag-over {
-  border-inline-start: 2px solid var(--drag-border);
+  box-shadow: inset 2px 0 0 var(--drag-border);
+}
+
+.tab-item.drag-over:dir(rtl) {
+  box-shadow: inset -2px 0 0 var(--drag-border);
+}
+
+.tab-item.tab-enter {
+  animation: tabEnter 0.16s ease-out;
+}
+
+@keyframes tabEnter {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-item, .tab-item.tab-enter, .nav-btn, .new-tab-btn, .tab-close-btn {
+    transition: none;
+    animation: none;
+  }
 }
 
 /* Tab Icon / Type Indicator */
@@ -269,7 +354,7 @@ button:focus-visible, input:focus-visible, .tab-item:focus-visible {
   height: 14px;
   flex-shrink: 0;
   display: block;
-  transition: color 0.15s ease;
+  transition: color 0.12s ease;
 }
 
 /* Standard Chat: Neutral gray */
@@ -295,10 +380,14 @@ body.theme-dark .tab-type-work {
   color: var(--text-muted);
 }
 
+.tab-item.active .tab-type-unknown {
+  color: var(--text-secondary);
+}
+
 .tab-spinner {
   width: 12px;
   height: 12px;
-  border: 2px solid var(--text-secondary);
+  border: 1.5px solid var(--border-bar);
   border-top-color: var(--accent-color);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -317,34 +406,51 @@ body.theme-dark .tab-type-work {
   padding-inline-end: 4px;
   unicode-bidi: plaintext;
   text-align: start;
-  line-height: 1.2;
+  line-height: 1.35;
 }
 
+/* Close affordance: visible on the active tab, on hover and on keyboard focus. */
 .tab-close-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
   border: none;
   background: transparent;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   cursor: pointer;
   flex-shrink: 0;
-  opacity: 0.6;
+  opacity: 0;
   margin-inline-start: 2px;
-  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+  transition: background-color 0.12s ease, color 0.12s ease, opacity 0.12s ease;
 }
 
 .tab-item:hover .tab-close-btn,
-.tab-item.active .tab-close-btn {
+.tab-item.active .tab-close-btn,
+.tab-item:focus-visible .tab-close-btn,
+.tab-close-btn:focus-visible {
   opacity: 1;
 }
 
 .tab-close-btn:hover {
   background-color: var(--btn-hover-bg);
   color: var(--btn-hover-color);
+}
+
+.tab-close-btn:active {
+  background-color: rgba(128, 128, 128, 0.28);
+}
+
+/* Narrow tabs: give the title the room; the close button returns on hover. */
+@container (max-width: 108px) {
+  .tab-item:not(.active):not(:hover) .tab-close-btn:not(:focus-visible) {
+    display: none;
+  }
+  .tab-icon-wrapper {
+    margin-inline-end: 5px;
+  }
 }
 
 /* New Tab Button */
@@ -354,12 +460,12 @@ body.theme-dark .tab-type-work {
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: 8px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  margin-left: 3px;
+  margin-inline-start: 4px;
   transition: background-color 0.15s ease, color 0.15s ease;
   -webkit-app-region: no-drag;
   flex-shrink: 0;
@@ -368,6 +474,10 @@ body.theme-dark .tab-type-work {
 .new-tab-btn:hover {
   background-color: var(--btn-hover-bg);
   color: var(--btn-hover-color);
+}
+
+.new-tab-btn:active {
+  background-color: rgba(128, 128, 128, 0.2);
 }
 
 /* Draggable Region */
