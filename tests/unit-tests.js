@@ -198,6 +198,45 @@ assert.strictEqual(isDirectImage('https://chatgpt.com/c/chat-uuid-here'), false)
 console.log('✔ Direct image routing logic correctly identifies asset URLs.\n');
 
 // Test 8: Platform icon assets verification
+console.log('Test 7b: Verifying conversation de-duplication key...');
+{
+  const { conversationKey } = require('../dist/main/tab-manager');
+  const id = '672bd8f2-1234-4abc-9def-000000000001';
+  assert.strictEqual(conversationKey(`https://chatgpt.com/c/${id}`), `chatgpt.com/c/${id}`);
+  assert.strictEqual(conversationKey(`https://chatgpt.com/c/${id}/?model=x#frag`), `chatgpt.com/c/${id}`, 'query, hash and trailing slash are ignored');
+  assert.strictEqual(conversationKey(`https://chatgpt.com/g/g-p-abc/c/${id}`), `chatgpt.com/c/${id}`, 'project-scoped path maps to the same conversation');
+  assert.strictEqual(conversationKey('https://chatgpt.com/'), null, 'home / new chat must never be de-duplicated');
+  assert.strictEqual(conversationKey('https://chatgpt.com/g/g-p-abc/project'), null);
+  assert.strictEqual(conversationKey('https://chatgpt.com/gpts'), null);
+  assert.strictEqual(conversationKey(`http://chatgpt.com/c/${id}`), null);
+  assert.strictEqual(conversationKey('not a url'), null);
+  assert.notStrictEqual(conversationKey(`https://chatgpt.com/c/${id}`), conversationKey('https://chatgpt.com/c/672bd8f2-1234-4abc-9def-000000000002'));
+}
+console.log('✔ Conversation key verified.\n');
+
+console.log('Test 7c: Verifying hosted-content drag-region guard...');
+{
+  const { NO_DRAG_REGIONS_CSS, neutralizeDragRegions } = require('../dist/main/drag-region-guard');
+  assert.ok(/-webkit-app-region:\s*no-drag\s*!important/.test(NO_DRAG_REGIONS_CSS));
+  const calls = [];
+  const handlers = {};
+  const fakeWc = {
+    isDestroyed: () => false,
+    on: (evt, fn) => { handlers[evt] = fn; },
+    insertCSS: (css, opts) => { calls.push({ css, opts }); return Promise.resolve('k'); }
+  };
+  neutralizeDragRegions(fakeWc);
+  assert.strictEqual(typeof handlers['dom-ready'], 'function', 'guard must re-apply on every new document');
+  handlers['dom-ready']();
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0].opts.cssOrigin, 'user', 'user origin is required to outrank !important author rules');
+  for (const file of ['tab-manager', 'side-browser-manager']) {
+    const src = fs.readFileSync(path.join(__dirname, `../dist/main/${file}.js`), 'utf8');
+    assert.ok(src.includes('neutralizeDragRegions)(wc)'), `${file} must guard its WebContentsViews`);
+  }
+}
+console.log('✔ Drag-region guard verified.\n');
+
 console.log('Test 8: Verifying platform icon assets...');
 const assetsDir = path.join(__dirname, '../assets');
 assert(fs.existsSync(path.join(assetsDir, 'icon.ico')), 'Windows icon.ico must exist');

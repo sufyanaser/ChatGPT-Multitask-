@@ -12,6 +12,7 @@ import {
   SPLIT_GUTTER_PX
 } from '../common/types';
 import { attachWebContextMenu } from './web-context-menu';
+import { neutralizeDragRegions } from './drag-region-guard';
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
 const BROWSER_HEADER_HEIGHT = 38;
@@ -415,6 +416,8 @@ export class SideBrowserManager {
 
   private setupViewListeners(tab: ManagedBrowserTab): void {
     const wc = tab.view.webContents;
+
+    neutralizeDragRegions(wc);
 
     attachWebContextMenu(wc, {
       getWindow: () => (this.window.isDestroyed() ? null : this.window),

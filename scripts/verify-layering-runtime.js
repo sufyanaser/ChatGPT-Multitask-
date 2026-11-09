@@ -113,13 +113,18 @@ app.whenReady().then(async () => {
     xdo('mousemove', '--sync', x, gy);
     await sleep(20);
   }
-  check('drag: views detached while dragging', views().length === 0, `attached=${views().length}`);
+  // Views stay attached and follow the pointer live (renderer holds mouse capture).
+  await sleep(200);
+  check('drag: views stay attached while dragging', views().length === 2, `attached=${views().length}`);
+  const chatMid = views().map((v) => v.getBounds()).find((b) => b.x === 0);
+  check('drag: chat view resizes live before release', !!chatMid && chatMid.width > splitX + 100,
+    chatMid ? `chat width mid-drag=${chatMid.width}, start=${splitX - 3}` : 'no chat view');
 
   xdo('mouseup', 1);
   await sleep(600);
   const state = await exec(`window.api.getBrowserState().then(s => ({ r: s.splitRatio, m: s.layoutMode }))`);
   check('drag: released at ~0.667 ratio', Math.abs(state.r - 0.667) < 0.01, `ratio=${state.r}`);
-  check('drag: views re-attached after release', views().length === 2, `attached=${views().length}`);
+  check('drag: views attached after release', views().length === 2, `attached=${views().length}`);
   const newSplit = Math.round(W * state.r);
   const chat2 = views().map((v) => v.getBounds()).find((b) => b.x === 0);
   check('drag: chat width follows new ratio', !!chat2 && chat2.x + chat2.width === newSplit - 3,
@@ -171,10 +176,9 @@ app.whenReady().then(async () => {
     `views right=${restored}, window=${W}`);
 
   // ---- Context menu for web views (BUG-05) --------------------------------
-  popupCount = 0;
-  click(120, 300, 3); // chat view area
-  await sleep(700);
-  check('context-menu: right-click in ChatGPT view opens menu', popupCount >= 1, `popups=${popupCount}`);
+  // The ChatGPT-view case runs further down against a local page: live
+  // chatgpt.com content at a fixed point is profile-dependent and made this
+  // check flaky (an empty area yields no menu items, by design).
 
   await exec(`window.api.setLayoutMode('split')`);
   await sleep(500);
@@ -229,6 +233,103 @@ app.whenReady().then(async () => {
   await exec(`window.api.setLayoutMode('split')`);
   await sleep(500);
   check('mode: split re-attaches both views', views().length === 2, `attached=${views().length}`);
+
+  // ---- Hosted pages must not own window drag regions ----------------------
+  // chatgpt.com ships `-webkit-app-region: drag` (incl. an !important variant)
+  // on its toolbars; non-<button> controls inside would lose OS clicks.
+  const chatView = views().find((v) => v.getBounds().x === 0);
+  if (chatView) {
+    const dragPage = `<html><head><style>
+      .draggable{-webkit-app-region:drag}.draggable button{-webkit-app-region:no-drag}
+      .\\!draggable{-webkit-app-region:drag!important}
+      .t{position:absolute;top:10px;width:80px;height:36px;background:#9cf}
+      </style></head><body style="margin:0">
+      <div class="draggable" style="position:absolute;left:0;top:0;width:100%;height:56px">
+        <a class="t" id="a" style="left:10px" href="#x">a</a>
+        <div class="t" id="d" style="left:110px" role="button" tabindex="0">d</div>
+      </div>
+      <div class="!draggable" style="position:absolute;left:0;top:60px;width:100%;height:56px">
+        <div class="t" id="i" style="left:10px" role="button">i</div>
+      </div>
+      <p id="p" style="position:absolute;left:20px;top:200px;margin:0;font:16px sans-serif">Selectable text</p>
+      <script>window.__c=[];for(const id of ['a','d','i'])document.getElementById(id).addEventListener('click',()=>__c.push(id));</script>
+      </body></html>`;
+    await chatView.webContents.loadURL(`data:text/html,${encodeURIComponent(dragPage)}`);
+    await sleep(900);
+    const cb = chatView.getBounds();
+    click(cb.x + 50, cb.y + 28); await sleep(300);
+    click(cb.x + 150, cb.y + 28); await sleep(300);
+    click(cb.x + 50, cb.y + 88); await sleep(300);
+    const got = await chatView.webContents.executeJavaScript('__c');
+    check('drag-regions: <a> inside page drag region receives click', got.includes('a'), `clicks=${got}`);
+    check('drag-regions: div[role=button] inside page drag region receives click', got.includes('d'), `clicks=${got}`);
+    check('drag-regions: !important page drag region is neutralized', got.includes('i'), `clicks=${got}`);
+
+    await chatView.webContents.executeJavaScript(
+      `window.getSelection().selectAllChildren(document.getElementById('p'))`);
+    await sleep(200);
+    popupCount = 0;
+    click(cb.x + 60, cb.y + 210, 3);
+    await sleep(700);
+    check('context-menu: right-click in ChatGPT view opens menu', popupCount >= 1 && /Copy/.test(lastMenuLabels.join('|')),
+      `popups=${popupCount} items=${lastMenuLabels.join('|')}`);
+  } else {
+    check('drag-regions: chat view available', false, 'no chat view');
+  }
+
+  // ---- Tab strip: reorder after close, overflow ---------------------------
+  await exec(`window.api.setLayoutMode('chat-only')`);
+  const tabIds = () => exec(`window.api.getInitialState().then(s => s.tabs.map(t => t.id))`);
+  const startCount = (await tabIds()).length;
+  for (let i = 0; i < 3; i++) await exec(`window.api.createTab('about:blank')`);
+  await sleep(600);
+  let ids = await tabIds();
+  // Close the first of the new tabs so creation-time indices are stale.
+  await exec(`window.api.closeTab(${JSON.stringify(ids[startCount])})`);
+  await sleep(400);
+  ids = await tabIds();
+  const last = ids.length - 1;
+  await exec(`(() => {
+    const els = document.querySelectorAll('#tabs-list .tab-item');
+    const dt = new DataTransfer();
+    els[${last}].dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+    els[${last - 1}].dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    els[${last}].dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: dt }));
+  })()`);
+  await sleep(400);
+  const after = await tabIds();
+  check('tabs: reorder after a close moves the dragged tab to the drop slot',
+    after[last - 1] === ids[last] && after[last] === ids[last - 1] && after.length === ids.length,
+    `before=${ids.map((x) => x.slice(0, 4))} after=${after.map((x) => x.slice(0, 4))}`);
+
+  for (let i = 0; i < 22; i++) await exec(`window.api.createTab('about:blank')`);
+  await sleep(1200);
+  const strip = await exec(`(() => {
+    const list = document.getElementById('tabs-list');
+    const lr = list.getBoundingClientRect();
+    const ar = list.querySelector('.tab-item.active').getBoundingClientRect();
+    const nb = document.getElementById('btn-new-tab').getBoundingClientRect();
+    const spacer = document.getElementById('windows-controls-spacer').getBoundingClientRect();
+    const widths = [...list.children].map(c => c.getBoundingClientRect().width);
+    return { overflow: list.scrollWidth > list.clientWidth, fadeStart: list.classList.contains('overflow-start'),
+      activeVisible: ar.left >= lr.left - 1 && ar.right <= lr.right + 1, activeW: ar.width,
+      minW: Math.min(...widths), newTabRight: nb.right, limit: spacer.left || window.innerWidth,
+      count: list.children.length };
+  })()`);
+  check('tabs: many tabs shrink to the floor and the strip scrolls', strip.overflow && strip.minW >= 75 && strip.minW <= 80,
+    `count=${strip.count} minW=${strip.minW}`);
+  check('tabs: active tab stays fully visible with readable width', strip.activeVisible && strip.activeW >= 130,
+    `activeW=${strip.activeW}`);
+  check('tabs: start-edge fade signals hidden tabs', strip.fadeStart === true);
+  check('tabs: new-tab button stays inside the bar', strip.newTabRight <= strip.limit, `right=${strip.newTabRight} limit=${strip.limit}`);
+
+  // Leave the profile as found: close every tab this section opened.
+  for (const id of (await tabIds()).slice(startCount)) {
+    await exec(`window.api.closeTab(${JSON.stringify(id)})`);
+  }
+  await sleep(600);
+  check('tabs: closing the extra tabs restores the original count', (await tabIds()).length === startCount,
+    `count=${(await tabIds()).length}, expected ${startCount}`);
 
   const passed = results.filter(Boolean).length;
   console.log(`\n${passed}/${results.length} runtime layering checks passed`);
