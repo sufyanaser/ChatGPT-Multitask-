@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-11-10
+
+First stable release. The version moves from 0.2.1 directly to 3.0.0.
+
+### Fixed
+
+- Controls in ChatGPT's own header and sidebar toolbars (Search, Sidebar
+  toggle and other non-`<button>` controls) did not respond to clicks.
+  chatgpt.com declares `-webkit-app-region: drag` on those toolbars; a browser
+  tab ignores it, but inside the app's hidden-titlebar window the area was
+  treated as window caption and the click never reached the page. Hosted pages
+  can no longer declare window drag regions; the window is dragged from the
+  app's tab bar only.
+- Tab drag-and-drop reordered the wrong tabs after any tab had been closed or
+  moved.
+- The split divider no longer hides the ChatGPT and browser views while it is
+  dragged; both panes resize live and the ratio is saved on release.
+- The Arabic RTL stylesheet was re-inserted on every in-page navigation,
+  stacking a duplicate per conversation switch. It is now inserted once per
+  document.
+
+### Changed
+
+- Tab strip: tabs shrink from 200px to a 76px floor (the active tab keeps
+  132px), then the strip scrolls with the mouse wheel, fades at the edges and
+  keeps the active tab in view.
+- Restored tabs load lazily: only the active tab navigates at startup, the
+  others on first selection.
+- Opening a link to a conversation that is already open focuses its tab
+  instead of creating a duplicate. New tabs (`Ctrl+T`, the `+` button) are
+  always independent.
+- Refined tab bar appearance in light and dark themes: clearer active tab,
+  separators, hover / pressed / focus states, consistent icon size, and
+  reduced-motion support.
+- Releases with a version below 1.0 or a pre-release suffix are published as
+  GitHub pre-releases; all others as stable.
+
+### Known issues
+
+- While the update popover is open, the content area narrows by about 340px.
+- Windows builds are unsigned and may trigger SmartScreen. macOS builds are
+  unsigned and not notarized; automatic update on macOS is not validated.
+- Pointer-level interaction tests run on Linux only. Windows and macOS rely on
+  the manual checklist in `docs/RELEASE.md`.
+
 ## [0.2.1] - 2026-11-08
 
 Pre-release. Not a stable release.
