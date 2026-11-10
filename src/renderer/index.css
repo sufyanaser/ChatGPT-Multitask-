@@ -1112,11 +1112,19 @@ body.theme-dark .tab-type-work {
    Visual styles (body.style-*) — each defines a dark and a light variant.
    --bg-bar per style must match CHROME_COLORS in src/main/window-manager.ts,
    which paints the window background and the Windows caption overlay.
+
+   The five materials are deliberately different in structure, not only in
+   colour:
+     frosted  heavy blur, milky panels on every tab, soft rounded cards
+     opaque   almost solid tinted cards with a sheen and a deep shadow
+     liquid   clear pill-shaped glass with specular edges, moving backdrop
+     acrylic  flat tinted layer with grain, square corners, accent indicator
+     mica     calm opaque surface, tab attached to the content edge, no blur
    ========================================================================== */
 
-/* Decorative backdrop behind the bar content. Only Glass and Aurora show it.
-   The right edge fades to the solid bar colour so it meets the native caption
-   buttons (which are drawn on a solid overlay) without a seam. */
+/* Decorative backdrop behind the bar content. The right edge fades to the
+   solid bar colour so it meets the native caption buttons (drawn on a solid
+   overlay) without a seam. */
 .bar-fx {
   position: absolute;
   inset: 0;
@@ -1136,205 +1144,377 @@ body.theme-dark .tab-type-work {
   width: 100%;
 }
 
-body.style-glass .bar-fx,
-body.style-aurora .bar-fx {
+body:not(.style-classic) .bar-fx {
   display: block;
 }
 
-/* ---- 1. Glass: frosted cards over soft colour light ---------------------- */
-body.style-glass {
-  --bg-bar: #12141c;
+body.style-classic .bar-fx {
+  display: none;
+}
+
+/* Popovers stay opaque in every style so their text is always legible. */
+body:not(.style-classic) .update-popover {
+  background: var(--surface-popover);
+}
+
+/* ---- 1. Frosted Glass: heavy blur, milky panels -------------------------- */
+body.style-frosted {
+  --bg-bar: #141a24;
   --border-bar: rgba(255, 255, 255, 0.10);
-  --bg-tab-hover: rgba(255, 255, 255, 0.07);
-  --bg-tab-active: rgba(255, 255, 255, 0.13);
-  --tab-active-border: rgba(255, 255, 255, 0.24);
-  --tab-separator: rgba(255, 255, 255, 0.14);
-  --tab-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  --text-primary: #f2f4f8;
-  --text-secondary: #c3c8d4;
-  --text-muted: #8a90a0;
-  --btn-hover-bg: rgba(255, 255, 255, 0.12);
+  --bg-tab: rgba(255, 255, 255, 0.045);
+  --bg-tab-hover: rgba(255, 255, 255, 0.10);
+  --bg-tab-active: rgba(255, 255, 255, 0.17);
+  --tab-border: rgba(255, 255, 255, 0.07);
+  --tab-active-border: rgba(255, 255, 255, 0.30);
+  --tab-separator: transparent;
+  --tab-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+  --text-primary: #f3f6fa;
+  --text-secondary: #c6ced9;
+  --text-muted: #8c95a3;
+  --btn-hover-bg: rgba(255, 255, 255, 0.13);
   --btn-hover-color: #ffffff;
-  --surface-popover: rgba(30, 34, 46, 0.92);
-  --fx-a: rgba(96, 132, 255, 0.55);
-  --fx-b: rgba(190, 96, 255, 0.45);
-  --fx-c: rgba(64, 210, 190, 0.40);
+  --surface-popover: #1d2531;
+  --fx-a: rgba(86, 156, 255, 0.60);
+  --fx-b: rgba(120, 220, 232, 0.45);
+  --fx-c: rgba(255, 140, 190, 0.38);
 }
 
-body.style-glass.theme-light {
-  --bg-bar: #e9eef7;
-  --border-bar: rgba(20, 30, 60, 0.10);
-  --bg-tab-hover: rgba(255, 255, 255, 0.45);
-  --bg-tab-active: rgba(255, 255, 255, 0.62);
-  --tab-active-border: rgba(255, 255, 255, 0.90);
-  --tab-separator: rgba(20, 30, 60, 0.16);
-  --tab-shadow: 0 4px 14px rgba(40, 60, 120, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  --text-primary: #131722;
-  --text-secondary: #454c5e;
-  --text-muted: #7b8294;
-  --btn-hover-bg: rgba(255, 255, 255, 0.60);
-  --btn-hover-color: #131722;
-  --surface-popover: rgba(248, 250, 255, 0.94);
-  --fx-a: rgba(120, 160, 255, 0.60);
-  --fx-b: rgba(214, 150, 255, 0.50);
-  --fx-c: rgba(110, 226, 205, 0.50);
+body.style-frosted.theme-light {
+  --bg-bar: #e8eef6;
+  --border-bar: rgba(30, 50, 80, 0.10);
+  --bg-tab: rgba(255, 255, 255, 0.34);
+  --bg-tab-hover: rgba(255, 255, 255, 0.55);
+  --bg-tab-active: rgba(255, 255, 255, 0.78);
+  --tab-border: rgba(255, 255, 255, 0.55);
+  --tab-active-border: rgba(255, 255, 255, 0.95);
+  --tab-shadow: 0 2px 10px rgba(50, 80, 130, 0.16);
+  --text-primary: #121821;
+  --text-secondary: #444e5d;
+  --text-muted: #7b8595;
+  --btn-hover-bg: rgba(255, 255, 255, 0.62);
+  --btn-hover-color: #121821;
+  --surface-popover: #f7f9fc;
+  --fx-a: rgba(110, 170, 255, 0.65);
+  --fx-b: rgba(120, 222, 230, 0.55);
+  --fx-c: rgba(255, 160, 205, 0.50);
 }
 
-body.style-glass .bar-fx-layer {
+body.style-frosted .bar-fx-layer {
   background:
-    radial-gradient(38% 120% at 12% 50%, var(--fx-a), transparent 70%),
-    radial-gradient(34% 120% at 46% 40%, var(--fx-b), transparent 70%),
-    radial-gradient(30% 120% at 74% 60%, var(--fx-c), transparent 70%);
-  filter: blur(18px);
+    radial-gradient(34% 130% at 10% 50%, var(--fx-a), transparent 72%),
+    radial-gradient(30% 130% at 44% 45%, var(--fx-b), transparent 72%),
+    radial-gradient(30% 130% at 76% 55%, var(--fx-c), transparent 72%);
+  filter: blur(10px);
 }
 
-body.style-glass .tab-item.active,
-body.style-glass .tab-item:hover:not(.active),
-body.style-glass .zoom-popover,
-body.style-glass .browser-tab-item.active {
-  -webkit-backdrop-filter: blur(16px) saturate(170%);
-  backdrop-filter: blur(16px) saturate(170%);
+body.style-frosted .tab-item,
+body.style-frosted .zoom-popover {
+  -webkit-backdrop-filter: blur(26px) saturate(115%);
+  backdrop-filter: blur(26px) saturate(115%);
+  border-radius: 11px;
 }
 
-body.style-glass .tab-item {
-  border-radius: 10px;
-}
-
-/* ---- 2. Aurora: slow moving colour bands -------------------------------- */
-body.style-aurora {
-  --bg-bar: #0d1117;
-  --border-bar: rgba(255, 255, 255, 0.08);
-  --bg-tab-hover: rgba(255, 255, 255, 0.07);
-  --bg-tab-active: rgba(13, 17, 23, 0.62);
-  --tab-active-border: rgba(140, 230, 210, 0.38);
-  --tab-separator: rgba(255, 255, 255, 0.14);
-  --tab-shadow: 0 0 0 1px rgba(120, 220, 200, 0.10), 0 6px 18px rgba(0, 0, 0, 0.40);
-  --text-primary: #eef3f7;
-  --text-secondary: #b9c4cf;
-  --text-muted: #7f8b97;
+/* ---- 2. Opaque Glassmorphism: near-solid cards with sheen ---------------- */
+body.style-opaque {
+  --bg-bar: #1a1626;
+  --border-bar: rgba(255, 255, 255, 0.07);
+  --bg-tab-hover: rgba(255, 255, 255, 0.06);
+  --bg-tab-active: rgba(62, 52, 92, 0.94);
+  --tab-active-border: rgba(196, 176, 255, 0.42);
+  --tab-separator: rgba(255, 255, 255, 0.12);
+  --tab-shadow: 0 8px 20px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.16) inset;
+  --text-primary: #f4f1fb;
+  --text-secondary: #c2bad6;
+  --text-muted: #857c9c;
   --btn-hover-bg: rgba(255, 255, 255, 0.10);
   --btn-hover-color: #ffffff;
-  --accent-color: #3ddbb4;
-  --drag-border: #3ddbb4;
-  --surface-popover: #161c24;
-  --fx-a: rgba(41, 211, 170, 0.50);
-  --fx-b: rgba(72, 126, 255, 0.46);
-  --fx-c: rgba(170, 92, 255, 0.44);
-  --fx-d: rgba(255, 110, 170, 0.30);
+  --accent-color: #a78bfa;
+  --drag-border: #a78bfa;
+  --surface-popover: #2a2340;
+  --fx-a: rgba(120, 86, 220, 0.34);
+  --fx-b: rgba(60, 70, 170, 0.30);
 }
 
-body.style-aurora.theme-light {
-  --bg-bar: #eef2fb;
-  --border-bar: rgba(20, 30, 60, 0.10);
+body.style-opaque.theme-light {
+  --bg-bar: #ece9f6;
+  --border-bar: rgba(50, 30, 100, 0.10);
   --bg-tab-hover: rgba(255, 255, 255, 0.50);
-  --bg-tab-active: rgba(255, 255, 255, 0.80);
-  --tab-active-border: rgba(40, 170, 140, 0.40);
-  --tab-separator: rgba(20, 30, 60, 0.16);
-  --tab-shadow: 0 0 0 1px rgba(40, 170, 140, 0.10), 0 6px 16px rgba(60, 80, 140, 0.14);
-  --text-primary: #101521;
-  --text-secondary: #434b5c;
-  --text-muted: #7a8294;
-  --btn-hover-bg: rgba(255, 255, 255, 0.65);
-  --btn-hover-color: #101521;
-  --accent-color: #0f9f7f;
-  --drag-border: #0f9f7f;
+  --bg-tab-active: rgba(255, 255, 255, 0.96);
+  --tab-active-border: rgba(124, 92, 220, 0.34);
+  --tab-separator: rgba(50, 30, 100, 0.16);
+  --tab-shadow: 0 8px 20px rgba(80, 60, 150, 0.22), 0 1px 0 rgba(255, 255, 255, 1) inset;
+  --text-primary: #18132a;
+  --text-secondary: #4f4868;
+  --text-muted: #8a84a0;
+  --btn-hover-bg: rgba(255, 255, 255, 0.70);
+  --btn-hover-color: #18132a;
+  --accent-color: #6d4fd8;
+  --drag-border: #6d4fd8;
   --surface-popover: #ffffff;
-  --fx-a: rgba(70, 220, 185, 0.55);
-  --fx-b: rgba(120, 160, 255, 0.52);
-  --fx-c: rgba(196, 140, 255, 0.50);
-  --fx-d: rgba(255, 160, 200, 0.42);
+  --fx-a: rgba(150, 120, 240, 0.36);
+  --fx-b: rgba(110, 130, 240, 0.30);
+}
+
+body.style-opaque .bar-fx-layer {
+  background: linear-gradient(115deg, var(--fx-a) 0%, transparent 45%, var(--fx-b) 100%);
+}
+
+body.style-opaque .tab-item.active {
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0) 55%);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+/* ---- 3. Liquid Glass: clear pills, specular edges, moving light ---------- */
+body.style-liquid {
+  --bg-bar: #0c1220;
+  --border-bar: rgba(255, 255, 255, 0.08);
+  --bg-tab-hover: rgba(255, 255, 255, 0.08);
+  --bg-tab-active: rgba(255, 255, 255, 0.14);
+  --tab-active-border: rgba(255, 255, 255, 0.34);
+  --tab-separator: transparent;
+  --tab-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.60), inset 0 -1px 1px rgba(0, 0, 0, 0.30),
+    inset 0 0 12px rgba(255, 255, 255, 0.08), 0 6px 16px rgba(0, 0, 0, 0.35);
+  --text-primary: #f5f8fc;
+  --text-secondary: #c4cedb;
+  --text-muted: #8893a3;
+  --btn-hover-bg: rgba(255, 255, 255, 0.14);
+  --btn-hover-color: #ffffff;
+  --accent-color: #5ac8fa;
+  --drag-border: #5ac8fa;
+  --surface-popover: #172033;
+  --fx-a: rgba(10, 132, 255, 0.62);
+  --fx-b: rgba(94, 92, 230, 0.56);
+  --fx-c: rgba(48, 209, 188, 0.52);
+  --fx-d: rgba(255, 100, 130, 0.40);
+}
+
+body.style-liquid.theme-light {
+  --bg-bar: #e6f0fb;
+  --border-bar: rgba(20, 50, 90, 0.10);
+  --bg-tab-hover: rgba(255, 255, 255, 0.40);
+  --bg-tab-active: rgba(255, 255, 255, 0.52);
+  --tab-active-border: rgba(255, 255, 255, 0.95);
+  --tab-shadow: inset 0 1px 0 rgba(255, 255, 255, 1), inset 0 -1px 1px rgba(40, 80, 140, 0.18),
+    inset 0 0 12px rgba(255, 255, 255, 0.40), 0 6px 16px rgba(40, 80, 140, 0.20);
+  --text-primary: #0d1622;
+  --text-secondary: #3f4b5c;
+  --text-muted: #788496;
+  --btn-hover-bg: rgba(255, 255, 255, 0.60);
+  --btn-hover-color: #0d1622;
+  --accent-color: #0a84ff;
+  --drag-border: #0a84ff;
+  --surface-popover: #ffffff;
+  --fx-a: rgba(70, 160, 255, 0.62);
+  --fx-b: rgba(140, 138, 255, 0.56);
+  --fx-c: rgba(80, 220, 200, 0.56);
+  --fx-d: rgba(255, 150, 175, 0.48);
 }
 
 /* The layer is twice the bar width and repeats seamlessly; only `transform`
    animates, so the motion stays on the compositor and costs no layout or
    paint per frame. */
-body.style-aurora .bar-fx-layer {
+body.style-liquid .bar-fx-layer {
   width: 200%;
   background: linear-gradient(100deg,
     var(--fx-a) 0%, var(--fx-b) 12.5%, var(--fx-c) 25%, var(--fx-d) 37.5%,
     var(--fx-a) 50%, var(--fx-b) 62.5%, var(--fx-c) 75%, var(--fx-d) 87.5%,
     var(--fx-a) 100%);
-  filter: blur(14px);
+  filter: blur(12px);
   will-change: transform;
-  animation: auroraDrift 26s linear infinite;
+  animation: liquidDrift 28s linear infinite;
 }
 
-@keyframes auroraDrift {
+@keyframes liquidDrift {
   from { transform: translate3d(0, 0, 0); }
   to { transform: translate3d(-50%, 0, 0); }
 }
 
-body.style-aurora .tab-item.active {
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-}
-
-/* ---- 3. Neumorphism: one surface, raised and pressed shapes -------------- */
-body.style-neumorph {
-  --bg-bar: #24262b;
-  --border-bar: transparent;
-  --bg-tab-hover: #24262b;
-  --bg-tab-active: #24262b;
-  --tab-active-border: transparent;
-  --tab-separator: transparent;
-  --neu-dark: #17181b;
-  --neu-light: #31343b;
-  --tab-shadow: inset 3px 3px 6px var(--neu-dark), inset -3px -3px 6px var(--neu-light);
-  --neu-raised: 3px 3px 6px var(--neu-dark), -3px -3px 6px var(--neu-light);
-  --text-primary: #e8eaee;
-  --text-secondary: #a9aeb8;
-  --text-muted: #747984;
-  --btn-hover-bg: #24262b;
-  --btn-hover-color: #ffffff;
-  --surface-popover: #24262b;
-}
-
-body.style-neumorph.theme-light {
-  --bg-bar: #e6e9ef;
-  --bg-tab-hover: #e6e9ef;
-  --bg-tab-active: #e6e9ef;
-  --neu-dark: #c3c7cf;
-  --neu-light: #ffffff;
-  --text-primary: #1c2028;
-  --text-secondary: #535a68;
-  --text-muted: #8a909c;
-  --btn-hover-bg: #e6e9ef;
-  --btn-hover-color: #1c2028;
-  --surface-popover: #e6e9ef;
-}
-
-body.style-neumorph .tab-item {
-  border-radius: 10px;
+body.style-liquid .tab-item {
+  border-radius: 999px;
   height: 30px;
+  padding-inline-start: 13px;
+  padding-inline-end: 8px;
 }
 
-body.style-neumorph .tab-item:hover:not(.active),
-body.style-neumorph .nav-btn:hover:not(:disabled),
-body.style-neumorph .new-tab-btn:hover {
-  box-shadow: var(--neu-raised);
+body.style-liquid .tab-item.active,
+body.style-liquid .tab-item:hover:not(.active) {
+  -webkit-backdrop-filter: blur(9px) saturate(220%) brightness(1.12);
+  backdrop-filter: blur(9px) saturate(220%) brightness(1.12);
 }
 
-body.style-neumorph .nav-btn:active:not(:disabled),
-body.style-neumorph .new-tab-btn:active,
-body.style-neumorph .nav-btn.active {
-  background-color: var(--bg-bar);
-  box-shadow: var(--tab-shadow);
+body.style-liquid .nav-btn,
+body.style-liquid .new-tab-btn,
+body.style-liquid .tab-close-btn {
+  border-radius: 50%;
 }
 
-body.style-neumorph .tabs-list {
-  gap: 6px;
-  padding: 0 6px;
+body.style-liquid .tabs-list {
+  gap: 4px;
 }
 
-/* Shared: popovers use an opaque surface in every style so text stays legible. */
-body.style-glass .update-popover,
-body.style-aurora .update-popover,
-body.style-neumorph .update-popover {
-  background: var(--surface-popover);
+/* ---- 4. Acrylic: tinted layer with grain, Fluent geometry ---------------- */
+body.style-acrylic {
+  --bg-bar: #1f1f1f;
+  --border-bar: rgba(255, 255, 255, 0.06);
+  --bg-tab-hover: rgba(255, 255, 255, 0.06);
+  --bg-tab-active: rgba(255, 255, 255, 0.09);
+  --tab-active-border: transparent;
+  --tab-separator: rgba(255, 255, 255, 0.10);
+  --tab-shadow: none;
+  --text-primary: #ffffff;
+  --text-secondary: #c8c8c8;
+  --text-muted: #8f8f8f;
+  --btn-hover-bg: rgba(255, 255, 255, 0.08);
+  --btn-hover-color: #ffffff;
+  --accent-color: #60cdff;
+  --drag-border: #60cdff;
+  --surface-popover: #2c2c2c;
+  --acrylic-tint: rgba(32, 32, 32, 0.62);
+  --acrylic-grain: 0.10;
+  --fx-a: rgba(0, 120, 212, 0.75);
+  --fx-b: rgba(136, 23, 152, 0.60);
+  --fx-c: rgba(0, 178, 148, 0.55);
+}
+
+body.style-acrylic.theme-light {
+  --bg-bar: #f6f6f6;
+  --border-bar: rgba(0, 0, 0, 0.07);
+  --bg-tab-hover: rgba(0, 0, 0, 0.04);
+  --bg-tab-active: rgba(255, 255, 255, 0.70);
+  --tab-separator: rgba(0, 0, 0, 0.12);
+  --text-primary: #1a1a1a;
+  --text-secondary: #5c5c5c;
+  --text-muted: #8a8a8a;
+  --btn-hover-bg: rgba(0, 0, 0, 0.05);
+  --btn-hover-color: #1a1a1a;
+  --accent-color: #005fb8;
+  --drag-border: #005fb8;
+  --surface-popover: #fcfcfc;
+  --acrylic-tint: rgba(246, 246, 246, 0.66);
+  --acrylic-grain: 0.07;
+  --fx-a: rgba(0, 120, 212, 0.60);
+  --fx-b: rgba(177, 70, 194, 0.48);
+  --fx-c: rgba(0, 183, 195, 0.48);
+}
+
+/* Wallpaper-like colour under a tint layer plus grain: the acrylic recipe. */
+body.style-acrylic .bar-fx-layer {
+  background:
+    radial-gradient(40% 140% at 8% 50%, var(--fx-a), transparent 75%),
+    radial-gradient(40% 140% at 50% 50%, var(--fx-b), transparent 75%),
+    radial-gradient(40% 140% at 88% 50%, var(--fx-c), transparent 75%);
+  filter: blur(30px) saturate(125%);
+}
+
+body.style-acrylic .bar-fx::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: var(--acrylic-tint);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
+  background-blend-mode: overlay;
+}
+
+body.style-acrylic .bar-fx::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
+  opacity: var(--acrylic-grain);
+  mix-blend-mode: overlay;
+}
+
+body.style-acrylic .tab-item,
+body.style-acrylic .nav-btn,
+body.style-acrylic .new-tab-btn,
+body.style-acrylic .tab-close-btn {
+  border-radius: 4px;
+}
+
+/* Fluent selection indicator instead of a card outline. */
+body.style-acrylic .tab-item.active::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 18px;
+  height: 3px;
+  margin-left: -9px;
+  border-radius: 2px;
+  background-color: var(--accent-color);
+}
+
+/* ---- 5. Mica: calm opaque surface, tab joined to the content ------------- */
+body.style-mica {
+  --bg-bar: #202020;
+  --border-bar: transparent;
+  --bg-tab-hover: rgba(255, 255, 255, 0.05);
+  --bg-tab-active: #2b2b2b;
+  --tab-active-border: rgba(255, 255, 255, 0.09);
+  --tab-separator: rgba(255, 255, 255, 0.10);
+  --tab-shadow: none;
+  --text-primary: #ffffff;
+  --text-secondary: #c5c5c5;
+  --text-muted: #8c8c8c;
+  --btn-hover-bg: rgba(255, 255, 255, 0.07);
+  --btn-hover-color: #ffffff;
+  --accent-color: #60cdff;
+  --drag-border: #60cdff;
+  --surface-popover: #2b2b2b;
+  --fx-a: rgba(72, 96, 160, 0.20);
+  --fx-b: rgba(150, 90, 130, 0.14);
+}
+
+body.style-mica.theme-light {
+  --bg-bar: #f3f3f3;
+  --bg-tab-hover: rgba(0, 0, 0, 0.04);
+  --bg-tab-active: #fbfbfb;
+  --tab-active-border: rgba(0, 0, 0, 0.09);
+  --tab-separator: rgba(0, 0, 0, 0.12);
+  --text-primary: #1b1b1b;
+  --text-secondary: #5d5d5d;
+  --text-muted: #8b8b8b;
+  --btn-hover-bg: rgba(0, 0, 0, 0.05);
+  --btn-hover-color: #1b1b1b;
+  --accent-color: #005fb8;
+  --drag-border: #005fb8;
+  --surface-popover: #fbfbfb;
+  --fx-a: rgba(150, 180, 240, 0.30);
+  --fx-b: rgba(240, 190, 210, 0.24);
+}
+
+/* A wide, barely visible wallpaper tint — no blur on any control. */
+body.style-mica .bar-fx-layer {
+  background: linear-gradient(90deg, var(--fx-a) 0%, transparent 50%, var(--fx-b) 100%);
+}
+
+body.style-mica .tabs-list {
+  align-items: flex-end;
+  gap: 0;
+}
+
+body.style-mica .tab-item {
+  height: 36px;
+  border-radius: 8px 8px 0 0;
+  border-bottom-color: transparent;
+}
+
+body.style-mica .tab-item.active {
+  border-bottom-color: transparent;
+}
+
+body.style-mica .tab-item + .tab-item::before {
+  inset-inline-start: 0;
+  top: 11px;
+  bottom: 11px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body.style-aurora .bar-fx-layer {
+  body.style-liquid .bar-fx-layer {
     animation: none;
   }
 }

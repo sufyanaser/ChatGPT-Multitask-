@@ -144,11 +144,31 @@ app.whenReady().then(async () => {
   check('persist: split ratio saved to settings after release', saved);
 
   // ---- Update popover above WebContentsView (BUG-04) ----------------------
+  // Count update checks at the IPC boundary (and keep the test off the network).
+  const { ipcMain } = require('electron');
+  const { IPC_CHANNELS } = require(path.join(__dirname, '../dist/common/types'));
+  let updateChecks = 0;
+  ipcMain.removeHandler(IPC_CHANNELS.CHECK_FOR_UPDATES);
+  ipcMain.handle(IPC_CHANNELS.CHECK_FOR_UPDATES, async () => {
+    updateChecks++;
+    return { status: 'up-to-date', hasUpdate: false, currentVersion: app.getVersion(), latestVersion: app.getVersion() };
+  });
+
   const btn = await rectOf('btn-updates');
   click(btn.cx, btn.cy);
   await sleep(500);
   const popOpen = await exec(`!document.getElementById('update-popover').classList.contains('hidden')`);
   check('popover: opens from update button', popOpen === true);
+  check('update: opening the popover checks the repository', updateChecks === 1, `checks=${updateChecks}`);
+
+  // Every further press must query again and keep the popover open.
+  click(btn.cx, btn.cy);
+  await sleep(500);
+  click(btn.cx, btn.cy);
+  await sleep(500);
+  const stillOpenAfterPresses = await exec(`!document.getElementById('update-popover').classList.contains('hidden')`);
+  check('update: each press re-checks and keeps the popover open', updateChecks === 3 && stillOpenAfterPresses === true,
+    `checks=${updateChecks} open=${stillOpenAfterPresses}`);
 
   const pr = await rectOf('update-popover');
   const maxRight = Math.max(...views().map((v) => { const b = v.getBounds(); return b.x + b.width; }));
@@ -170,6 +190,13 @@ app.whenReady().then(async () => {
   await sleep(500);
   const stillOpen = await exec(`!document.getElementById('update-popover').classList.contains('hidden')`);
   check('popover: close button dismisses popover', stillOpen === false);
+
+  // Re-opening after a completed check must check again, not show the old result.
+  click(btn.cx, btn.cy);
+  await sleep(500);
+  check('update: re-opening checks again', updateChecks === 4, `checks=${updateChecks}`);
+  await exec(`document.getElementById('btn-popover-close').click()`);
+  await sleep(400);
 
   const restored = Math.max(...views().map((v) => { const b = v.getBounds(); return b.x + b.width; }));
   check('popover: views restored to full width after close', restored === W,
@@ -348,27 +375,46 @@ app.whenReady().then(async () => {
   check('appearance: toggle cycles system -> dark -> light -> system',
     modeSeen[0] === 'dark:D' && modeSeen[1] === 'light:L' && modeSeen[2].startsWith('system:'), `seen=${modeSeen}`);
 
-  const expectBar = { classic: ['rgb(24, 24, 24)', 'rgb(243, 243, 243)'], glass: ['rgb(18, 20, 28)', 'rgb(233, 238, 247)'],
-    aurora: ['rgb(13, 17, 23)', 'rgb(238, 242, 251)'], neumorph: ['rgb(36, 38, 43)', 'rgb(230, 233, 239)'] };
-  for (const style of ['glass', 'aurora', 'neumorph', 'classic']) {
+  const expectBar = { classic: ['rgb(24, 24, 24)', 'rgb(243, 243, 243)'], frosted: ['rgb(20, 26, 36)', 'rgb(232, 238, 246)'],
+    opaque: ['rgb(26, 22, 38)', 'rgb(236, 233, 246)'], liquid: ['rgb(12, 18, 32)', 'rgb(230, 240, 251)'],
+    acrylic: ['rgb(31, 31, 31)', 'rgb(246, 246, 246)'], mica: ['rgb(32, 32, 32)', 'rgb(243, 243, 243)'] };
+  const shapes = {};
+  for (const style of ['frosted', 'opaque', 'liquid', 'acrylic', 'mica', 'classic']) {
     const got = [];
     for (const mode of ['dark', 'light']) {
       await exec(`window.api.setTheme('${mode}')`);
       await exec(`window.api.setUiStyle('${style}')`);
       await sleep(450);
       got.push(await exec(`(() => { const bar = document.getElementById('tab-bar-container');
+        const tab = document.querySelector('.tab-item.active'); const cs = getComputedStyle(tab);
         return { cls: document.body.classList.contains('style-${style}'), bg: getComputedStyle(bar).backgroundColor,
           fx: getComputedStyle(document.querySelector('.bar-fx')).display,
           anim: getComputedStyle(document.querySelector('.bar-fx-layer')).animationName,
-          blur: getComputedStyle(document.querySelector('.tab-item.active')).backdropFilter }; })()`));
+          blur: cs.backdropFilter, radius: cs.borderTopLeftRadius + '/' + cs.borderBottomLeftRadius,
+          tabBg: cs.backgroundColor, shadow: cs.boxShadow === 'none' ? 'none' : 'shadow',
+          indicator: getComputedStyle(tab, '::after').content !== 'none',
+          bottomGap: Math.round(bar.getBoundingClientRect().bottom - tab.getBoundingClientRect().bottom) }; })()`));
     }
     check(`style ${style}: dark and light bar colours applied`,
       got[0].cls && got[1].cls && got[0].bg === expectBar[style][0] && got[1].bg === expectBar[style][1],
       `dark=${got[0].bg} light=${got[1].bg}`);
-    if (style === 'glass') check('style glass: active tab uses backdrop blur', /blur/.test(got[0].blur) && got[0].fx === 'block', `blur=${got[0].blur}`);
-    if (style === 'aurora') check('style aurora: backdrop animates', got[0].anim === 'auroraDrift' && got[0].fx === 'block', `anim=${got[0].anim}`);
+    check(`style ${style}: active tab differs between dark and light`, got[0].tabBg !== got[1].tabBg,
+      `dark=${got[0].tabBg} light=${got[1].tabBg}`);
+    shapes[style] = got[0];
     if (style === 'classic') check('style classic: no decorative backdrop', got[0].fx === 'none', `fx=${got[0].fx}`);
+    else check(`style ${style}: decorative backdrop shown`, got[0].fx === 'block', `fx=${got[0].fx}`);
   }
+  // Structural differences, so the materials are not just recolours of each other.
+  check('style frosted: heavy backdrop blur', /blur\(26px\)/.test(shapes.frosted.blur), `blur=${shapes.frosted.blur}`);
+  check('style opaque: near-solid active card with deep shadow',
+    /0\.9[0-9]\)$/.test(shapes.opaque.tabBg) && shapes.opaque.shadow === 'shadow', `bg=${shapes.opaque.tabBg}`);
+  check('style liquid: pill tabs over an animated backdrop',
+    shapes.liquid.radius.startsWith('999px') && shapes.liquid.anim === 'liquidDrift', `radius=${shapes.liquid.radius} anim=${shapes.liquid.anim}`);
+  check('style acrylic: square corners, accent indicator, no blur on tabs',
+    shapes.acrylic.radius === '4px/4px' && shapes.acrylic.indicator && shapes.acrylic.blur === 'none', `radius=${shapes.acrylic.radius} blur=${shapes.acrylic.blur}`);
+  check('style mica: flat tab joined to the content edge, no blur',
+    shapes.mica.radius === '8px/0px' && shapes.mica.blur === 'none' && shapes.mica.shadow === 'none' && shapes.mica.bottomGap <= 1,
+    `radius=${shapes.mica.radius} gap=${shapes.mica.bottomGap}`);
   const savedStyle = fs.readFileSync(path.join(app.getPath('userData'), 'settings.json'), 'utf8');
   check('style: selection persisted to settings', /"uiStyle"\s*:\s*"classic"/.test(savedStyle));
   await exec(`window.api.setTheme('system')`);

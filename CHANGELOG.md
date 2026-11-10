@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-11-10
+
+### Changed
+
+- The three styles introduced in 4.0.0 (Glass, Aurora, Neumorphism) looked too
+  alike and are replaced by five materials that differ in structure, each with
+  a light and a dark variant:
+  - **Frosted Glass** — heavy blur; every tab is a milky panel.
+  - **Opaque Glass** — near-solid tinted cards with a sheen and a deep shadow.
+  - **Liquid Glass** — clear pill-shaped tabs with specular edges over a
+    slowly moving backdrop (transform-only animation, off under "reduce
+    motion").
+  - **Acrylic** — tinted layer with grain, square corners and an accent
+    selection indicator.
+  - **Mica** — calm opaque surface; the active tab is joined to the content
+    edge and nothing is blurred.
+  A style saved by 4.0.0 is migrated: Glass → Frosted Glass, Aurora → Liquid
+  Glass, Neumorphism → Mica. Classic is unchanged.
+- The update button checks the repository on every press. Opening the popover
+  always runs a new check, and pressing the button while it is open checks
+  again instead of closing it. A running download or a downloaded update
+  waiting to be installed is never discarded by a press. Close the popover
+  with its close button, Escape or a click outside.
+
+### Known issues
+
+- Acrylic and Mica are drawn by the app and do not sample the desktop
+  wallpaper the way the native Windows 11 materials do.
+- Styles apply to the app's own chrome. ChatGPT's page keeps its own
+  appearance.
+- While the update popover is open, the content area narrows by about 340px.
+- Windows builds are unsigned and may trigger SmartScreen. macOS builds are
+  unsigned and not notarized; automatic update on macOS is not validated.
+- Pointer-level interaction tests run on Linux only. Windows and macOS rely on
+  the manual checklist in `docs/RELEASE.md`.
+
 ## [4.0.0] - 2026-11-10
 
 ### Added

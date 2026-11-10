@@ -240,7 +240,11 @@ console.log('✔ Drag-region guard verified.\n');
 console.log('Test 7d: Verifying visual style contract...');
 {
   const { UI_STYLES } = require('../dist/common/types');
-  assert.deepStrictEqual([...UI_STYLES], ['classic', 'glass', 'aurora', 'neumorph']);
+  assert.deepStrictEqual([...UI_STYLES], ['classic', 'frosted', 'opaque', 'liquid', 'acrylic', 'mica']);
+  const { LEGACY_UI_STYLES } = require('../dist/common/types');
+  for (const [old, next] of Object.entries(LEGACY_UI_STYLES)) {
+    assert.ok(!UI_STYLES.includes(old) && UI_STYLES.includes(next), `legacy style ${old} must map to a current style`);
+  }
   assert.strictEqual(typeof IPC_CHANNELS.SET_UI_STYLE, 'string');
   assert.strictEqual(typeof IPC_CHANNELS.SHOW_APPEARANCE_MENU, 'string');
   const css = fs.readFileSync(path.join(__dirname, '../src/renderer/index.css'), 'utf8');
@@ -249,14 +253,14 @@ console.log('Test 7d: Verifying visual style contract...');
   assert.ok(preload.includes("SET_UI_STYLE: 'theme:set-style'") && preload.includes("SHOW_APPEARANCE_MENU: 'theme:show-menu'"));
   // Every non-classic style defines a dark and a light --bg-bar, and the main
   // process paints the window / caption overlay with the same two colours.
-  for (const style of ['glass', 'aurora', 'neumorph']) {
+  for (const style of ['frosted', 'opaque', 'liquid', 'acrylic', 'mica']) {
     const dark = css.match(new RegExp(`body\\.style-${style} \\{[^}]*--bg-bar: (#[0-9a-f]{6})`));
     const light = css.match(new RegExp(`body\\.style-${style}\\.theme-light \\{[^}]*--bg-bar: (#[0-9a-f]{6})`));
     assert.ok(dark && light, `${style} must define dark and light --bg-bar`);
     assert.ok(wm.includes(`${style}: ['${dark[1]}', '${light[1]}']`), `${style} chrome colours must match CSS`);
   }
-  assert.ok(/backdrop-filter:\s*blur/.test(css), 'glass style must use backdrop blur');
-  assert.ok(css.includes('@keyframes auroraDrift'), 'aurora style must be animated');
+  assert.ok(/backdrop-filter:\s*blur/.test(css), 'glass styles must use backdrop blur');
+  assert.ok(css.includes('@keyframes liquidDrift'), 'liquid style must be animated');
 }
 console.log('✔ Visual style contract verified.\n');
 

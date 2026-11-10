@@ -59,7 +59,7 @@ class AppViewController {
   private currentUpdateState: 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'ready' | 'error' = 'idle';
   private isCheckingUpdates: boolean = false;
   private checkRequestId: number = 0;
-  private currentAppVersion: string = '4.0.0';
+  private currentAppVersion: string = '4.1.0';
 
   // State trackers
   private currentThemeMode: ThemeMode = 'system';
@@ -213,14 +213,23 @@ class AppViewController {
   }
 
   private applyUiStyle(style: UiStyle | undefined): void {
-    const next: UiStyle = style === 'glass' || style === 'aurora' || style === 'neumorph' ? style : 'classic';
+    const labels: Record<UiStyle, string> = {
+      classic: 'Classic',
+      frosted: 'Frosted Glass',
+      opaque: 'Opaque Glass',
+      liquid: 'Liquid Glass',
+      acrylic: 'Acrylic',
+      mica: 'Mica'
+    };
+    const next: UiStyle = style && Object.prototype.hasOwnProperty.call(labels, style) ? style : 'classic';
     if (next === this.currentUiStyle && document.body.classList.contains(`style-${next}`)) return;
     this.currentUiStyle = next;
-    document.body.classList.remove('style-classic', 'style-glass', 'style-aurora', 'style-neumorph');
+    for (const cls of Array.from(document.body.classList)) {
+      if (cls.startsWith('style-')) document.body.classList.remove(cls);
+    }
     document.body.classList.add(`style-${next}`);
     if (this.btnStyle) {
-      const label = next === 'neumorph' ? 'Neumorphism' : next.charAt(0).toUpperCase() + next.slice(1);
-      this.btnStyle.title = `Appearance & Style (${label})`;
+      this.btnStyle.title = `Appearance & Style (${labels[next]})`;
     }
   }
 
@@ -653,9 +662,18 @@ class AppViewController {
     if (!this.updatePopover) return;
     if (this.updatePopover.classList.contains('hidden')) {
       this.openUpdatePopover();
-    } else {
+    } else if (this.isUpdateTransferActive()) {
+      // A download or a pending install must not be discarded by a new check.
       this.closeUpdatePopover();
+    } else {
+      // Popover already open: every press asks the repository again.
+      this.checkForUpdates();
     }
+  }
+
+  /** True while a download is running or an update is waiting to be installed. */
+  private isUpdateTransferActive(): boolean {
+    return this.currentUpdateState === 'downloading' || this.currentUpdateState === 'ready';
   }
 
   private openUpdatePopover(): void {
@@ -666,11 +684,12 @@ class AppViewController {
     this.updatePopoverPosition();
     this.syncUpdatePopoverReserve();
 
-    // If never checked before, trigger update check; otherwise restore current state
-    if (this.currentUpdateState === 'idle' && !this.isCheckingUpdates) {
-      this.checkForUpdates();
-    } else {
+    // Every open queries the repository again, so the shown version is always
+    // current. Only a running download or a pending install keeps its state.
+    if (this.isUpdateTransferActive() || this.isCheckingUpdates) {
       this.setUpdateState(this.currentUpdateState, this.lastCheckedUpdate);
+    } else {
+      this.checkForUpdates();
     }
   }
 
@@ -870,7 +889,7 @@ class AppViewController {
         const notesEl = document.getElementById('update-release-notes');
 
         const currentVer = data?.currentVersion || this.currentAppVersion;
-        const latestVer = data?.latestVersion || '4.0.0';
+        const latestVer = data?.latestVersion || '4.1.0';
 
         if (currEl) currEl.textContent = `v${currentVer}`;
         if (latestEl) latestEl.textContent = `v${latestVer}`;

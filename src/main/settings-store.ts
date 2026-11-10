@@ -1,7 +1,7 @@
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ThemeMode, UserSettings, LayoutMode, UiStyle, UI_STYLES } from '../common/types';
+import { ThemeMode, UserSettings, LayoutMode, UiStyle, UI_STYLES, LEGACY_UI_STYLES } from '../common/types';
 
 export class SettingsStore {
   private filePath: string;
@@ -28,7 +28,9 @@ export class SettingsStore {
       const themeMode: ThemeMode = ['system', 'dark', 'light'].includes(data.themeMode)
         ? data.themeMode
         : 'system';
-      const uiStyle: UiStyle = UI_STYLES.includes(data.uiStyle) ? data.uiStyle : 'classic';
+      const uiStyle: UiStyle = UI_STYLES.includes(data.uiStyle)
+        ? data.uiStyle
+        : (typeof data.uiStyle === 'string' && LEGACY_UI_STYLES[data.uiStyle]) || 'classic';
       const zoom = typeof data.zoomFactor === 'number' && !isNaN(data.zoomFactor)
         ? Math.min(1.5, Math.max(0.8, Math.round(data.zoomFactor * 10) / 10))
         : 1.0;
