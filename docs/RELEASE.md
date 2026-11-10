@@ -79,6 +79,10 @@ The WASM and Node-native dependency set does not require extra runtime files.
    git push origin v3.0.0
    ```
 
+   Alternatively run the `Release` workflow manually on the release branch
+   with `release_tag` set and `create_tag` enabled; it creates the tag on that
+   branch's head after checking it matches `package.json`.
+
 3. The `Release` workflow (`.github/workflows/release.yml`):
    - validates that the tag matches `package.json`;
    - runs the full test suite on Windows and macOS;
