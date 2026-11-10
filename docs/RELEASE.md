@@ -13,7 +13,7 @@ Versions below 1.0 and versions with a pre-release suffix (for example
 1. Update `version` in `package.json`:
 
    ```bash
-   npm version 4.0.0 --no-git-tag-version
+   npm version 4.1.0 --no-git-tag-version
    ```
 
 2. Update `CHANGELOG.md` with the release date and a complete change list.
@@ -49,7 +49,7 @@ result; a green CI run does not cover it.
 - 20+ tabs: strip scrolls, active tab stays visible, reorder after a close.
 - Restart restores tabs; background tabs load on first selection.
 - Light, Dark and Follow System; right-click menus in both views.
-- Each style (Classic, Glass, Aurora, Neumorphism) in light and dark; the
+- Each style (Classic, Frosted Glass, Opaque Glass, Liquid Glass, Acrylic, Mica) in light and dark; the
   caption buttons sit on a matching background.
 
 ## Artifacts
@@ -77,8 +77,8 @@ The WASM and Node-native dependency set does not require extra runtime files.
 2. Create and push a tag that matches the package version:
 
    ```bash
-   git tag v4.0.0
-   git push origin v4.0.0
+   git tag v4.1.0
+   git push origin v4.1.0
    ```
 
    Alternatively run the `Release` workflow manually on the release branch

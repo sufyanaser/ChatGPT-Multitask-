@@ -25,16 +25,20 @@ const MIN_CONTENT_WIDTH_PX = 240;
  */
 const CHROME_COLORS: Record<UiStyle, [string, string]> = {
   classic: ['#181818', '#f3f3f3'],
-  glass: ['#12141c', '#e9eef7'],
-  aurora: ['#0d1117', '#eef2fb'],
-  neumorph: ['#24262b', '#e6e9ef']
+  frosted: ['#141a24', '#e8eef6'],
+  opaque: ['#1a1626', '#ece9f6'],
+  liquid: ['#0c1220', '#e6f0fb'],
+  acrylic: ['#1f1f1f', '#f6f6f6'],
+  mica: ['#202020', '#f3f3f3']
 };
 
 const UI_STYLE_LABELS: Record<UiStyle, string> = {
   classic: 'Classic',
-  glass: 'Glass',
-  aurora: 'Aurora',
-  neumorph: 'Neumorphism'
+  frosted: 'Frosted Glass',
+  opaque: 'Opaque Glass',
+  liquid: 'Liquid Glass',
+  acrylic: 'Acrylic',
+  mica: 'Mica'
 };
 
 function chromeColor(isDark: boolean, style: UiStyle): string {

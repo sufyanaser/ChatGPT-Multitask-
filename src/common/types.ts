@@ -3,9 +3,16 @@ export type LayoutMode = 'chat-only' | 'split' | 'browser-only';
 export type ThemeMode = 'system' | 'dark' | 'light';
 
 /** Visual style of the app chrome. Every style has a light and a dark variant. */
-export type UiStyle = 'classic' | 'glass' | 'aurora' | 'neumorph';
+export type UiStyle = 'classic' | 'frosted' | 'opaque' | 'liquid' | 'acrylic' | 'mica';
 
-export const UI_STYLES: readonly UiStyle[] = ['classic', 'glass', 'aurora', 'neumorph'];
+export const UI_STYLES: readonly UiStyle[] = ['classic', 'frosted', 'opaque', 'liquid', 'acrylic', 'mica'];
+
+/** Style ids saved by 4.0.0, mapped to their closest current style. */
+export const LEGACY_UI_STYLES: Readonly<Record<string, UiStyle>> = {
+  glass: 'frosted',
+  aurora: 'liquid',
+  neumorph: 'mica'
+};
 
 export interface ThemeStatePayload {
   themeMode: ThemeMode;
