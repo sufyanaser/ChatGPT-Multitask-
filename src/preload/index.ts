@@ -4,6 +4,7 @@ import type {
   TabStatePayload,
   ThemeMode,
   ThemeStatePayload,
+  UiStyle,
   TabTypeOverride,
   LayoutMode,
   BrowserStatePayload,
@@ -40,6 +41,8 @@ const IPC = {
 
   GET_THEME: 'theme:get',
   SET_THEME: 'theme:set',
+  SET_UI_STYLE: 'theme:set-style',
+  SHOW_APPEARANCE_MENU: 'theme:show-menu',
 
   ZOOM_GET: 'zoom:get',
   ZOOM_SET: 'zoom:set',
@@ -89,6 +92,8 @@ export interface ElectronTabAPI {
   onStateUpdate: (callback: (payload: TabStatePayload) => void) => () => void;
   getTheme: () => Promise<ThemeStatePayload | 'dark' | 'light'>;
   setTheme: (mode: ThemeMode) => void;
+  setUiStyle: (style: UiStyle) => void;
+  showAppearanceMenu: () => void;
   onThemeUpdate: (callback: (themeOrPayload: any) => void) => () => void;
   onFullscreenUpdate: (callback: (isFullscreen: boolean) => void) => () => void;
   getZoom: () => Promise<number>;
@@ -192,6 +197,14 @@ const api: ElectronTabAPI = {
 
   setTheme: (mode: ThemeMode) => {
     ipcRenderer.send(IPC.SET_THEME, mode);
+  },
+
+  setUiStyle: (style: UiStyle) => {
+    ipcRenderer.send(IPC.SET_UI_STYLE, style);
+  },
+
+  showAppearanceMenu: () => {
+    ipcRenderer.send(IPC.SHOW_APPEARANCE_MENU);
   },
 
   onThemeUpdate: (callback: (themeOrPayload: any) => void) => {

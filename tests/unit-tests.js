@@ -237,6 +237,29 @@ console.log('Test 7c: Verifying hosted-content drag-region guard...');
 }
 console.log('✔ Drag-region guard verified.\n');
 
+console.log('Test 7d: Verifying visual style contract...');
+{
+  const { UI_STYLES } = require('../dist/common/types');
+  assert.deepStrictEqual([...UI_STYLES], ['classic', 'glass', 'aurora', 'neumorph']);
+  assert.strictEqual(typeof IPC_CHANNELS.SET_UI_STYLE, 'string');
+  assert.strictEqual(typeof IPC_CHANNELS.SHOW_APPEARANCE_MENU, 'string');
+  const css = fs.readFileSync(path.join(__dirname, '../src/renderer/index.css'), 'utf8');
+  const wm = fs.readFileSync(path.join(__dirname, '../src/main/window-manager.ts'), 'utf8');
+  const preload = fs.readFileSync(path.join(__dirname, '../src/preload/index.ts'), 'utf8');
+  assert.ok(preload.includes("SET_UI_STYLE: 'theme:set-style'") && preload.includes("SHOW_APPEARANCE_MENU: 'theme:show-menu'"));
+  // Every non-classic style defines a dark and a light --bg-bar, and the main
+  // process paints the window / caption overlay with the same two colours.
+  for (const style of ['glass', 'aurora', 'neumorph']) {
+    const dark = css.match(new RegExp(`body\\.style-${style} \\{[^}]*--bg-bar: (#[0-9a-f]{6})`));
+    const light = css.match(new RegExp(`body\\.style-${style}\\.theme-light \\{[^}]*--bg-bar: (#[0-9a-f]{6})`));
+    assert.ok(dark && light, `${style} must define dark and light --bg-bar`);
+    assert.ok(wm.includes(`${style}: ['${dark[1]}', '${light[1]}']`), `${style} chrome colours must match CSS`);
+  }
+  assert.ok(/backdrop-filter:\s*blur/.test(css), 'glass style must use backdrop blur');
+  assert.ok(css.includes('@keyframes auroraDrift'), 'aurora style must be animated');
+}
+console.log('✔ Visual style contract verified.\n');
+
 console.log('Test 8: Verifying platform icon assets...');
 const assetsDir = path.join(__dirname, '../assets');
 assert(fs.existsSync(path.join(assetsDir, 'icon.ico')), 'Windows icon.ico must exist');

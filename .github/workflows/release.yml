@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release tag (e.g. v3.0.0)'
+        description: 'Release tag (e.g. v4.0.0)'
         required: true
-        default: 'v3.0.0'
+        default: 'v4.0.0'
       create_tag:
         description: 'Create the tag on the selected branch if it does not exist yet'
         type: boolean

@@ -108,7 +108,7 @@ contract and update pipeline.
 1. Merge validated changes into `develop`, then `main`.
 2. Bump `version` in `package.json` and `package-lock.json`.
 3. Update `CHANGELOG.md`.
-4. Tag the release (`v3.0.0`) and push the tag.
+4. Tag the release (`v4.0.0`) and push the tag.
 5. The `Release` workflow builds Windows and macOS, verifies update metadata,
    and publishes the GitHub Release only if every build succeeds.
 

@@ -1,12 +1,13 @@
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ThemeMode, UserSettings, LayoutMode } from '../common/types';
+import { ThemeMode, UserSettings, LayoutMode, UiStyle, UI_STYLES } from '../common/types';
 
 export class SettingsStore {
   private filePath: string;
   private readonly DEFAULT_SETTINGS: UserSettings = {
     themeMode: 'system',
+    uiStyle: 'classic',
     zoomFactor: 1.0,
     layoutMode: 'chat-only',
     splitRatio: 0.5
@@ -27,6 +28,7 @@ export class SettingsStore {
       const themeMode: ThemeMode = ['system', 'dark', 'light'].includes(data.themeMode)
         ? data.themeMode
         : 'system';
+      const uiStyle: UiStyle = UI_STYLES.includes(data.uiStyle) ? data.uiStyle : 'classic';
       const zoom = typeof data.zoomFactor === 'number' && !isNaN(data.zoomFactor)
         ? Math.min(1.5, Math.max(0.8, Math.round(data.zoomFactor * 10) / 10))
         : 1.0;
@@ -39,6 +41,7 @@ export class SettingsStore {
 
       return {
         themeMode,
+        uiStyle,
         zoomFactor: zoom,
         layoutMode,
         splitRatio
@@ -54,6 +57,7 @@ export class SettingsStore {
       const current = this.load();
       const updated: UserSettings = {
         themeMode: settings.themeMode ?? current.themeMode,
+        uiStyle: settings.uiStyle && UI_STYLES.includes(settings.uiStyle) ? settings.uiStyle : current.uiStyle,
         zoomFactor: settings.zoomFactor !== undefined
           ? Math.min(1.5, Math.max(0.8, Math.round(settings.zoomFactor * 10) / 10))
           : current.zoomFactor,

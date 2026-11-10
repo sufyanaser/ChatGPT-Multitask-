@@ -2,14 +2,21 @@ export type LayoutMode = 'chat-only' | 'split' | 'browser-only';
 
 export type ThemeMode = 'system' | 'dark' | 'light';
 
+/** Visual style of the app chrome. Every style has a light and a dark variant. */
+export type UiStyle = 'classic' | 'glass' | 'aurora' | 'neumorph';
+
+export const UI_STYLES: readonly UiStyle[] = ['classic', 'glass', 'aurora', 'neumorph'];
+
 export interface ThemeStatePayload {
   themeMode: ThemeMode;
   isDark: boolean;
   systemIsDark: boolean;
+  uiStyle: UiStyle;
 }
 
 export interface UserSettings {
   themeMode: ThemeMode;
+  uiStyle: UiStyle;
   zoomFactor: number;
   layoutMode: LayoutMode;
   splitRatio: number;
@@ -151,6 +158,8 @@ export const IPC_CHANNELS = {
   THEME_GET: 'theme:get',
   GET_THEME: 'theme:get',
   SET_THEME: 'theme:set',
+  SET_UI_STYLE: 'theme:set-style',
+  SHOW_APPEARANCE_MENU: 'theme:show-menu',
 
   // Zoom Sync
   ZOOM_GET: 'zoom:get',

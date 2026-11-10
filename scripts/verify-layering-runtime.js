@@ -331,6 +331,49 @@ app.whenReady().then(async () => {
   check('tabs: closing the extra tabs restores the original count', (await tabIds()).length === startCount,
     `count=${(await tabIds()).length}, expected ${startCount}`);
 
+  // ---- Appearance: mode toggle and visual styles ---------------------------
+  // The toggle must step Follow System -> Dark -> Light -> Follow System on any
+  // system theme (it used to stick when the system theme was light).
+  await exec(`window.api.setTheme('system')`);
+  await sleep(400);
+  const themeBtn = await rectOf('btn-theme');
+  const modeSeen = [];
+  for (let i = 0; i < 3; i++) {
+    click(themeBtn.cx, themeBtn.cy);
+    await sleep(450);
+    modeSeen.push(await exec(`(() => { const t = document.getElementById('btn-theme').title;
+      const dark = document.body.classList.contains('theme-dark');
+      return (t.includes('Follow System') ? 'system' : t.includes('Dark (') || t.startsWith('Appearance: Dark') ? 'dark' : 'light') + ':' + (dark ? 'D' : 'L'); })()`));
+  }
+  check('appearance: toggle cycles system -> dark -> light -> system',
+    modeSeen[0] === 'dark:D' && modeSeen[1] === 'light:L' && modeSeen[2].startsWith('system:'), `seen=${modeSeen}`);
+
+  const expectBar = { classic: ['rgb(24, 24, 24)', 'rgb(243, 243, 243)'], glass: ['rgb(18, 20, 28)', 'rgb(233, 238, 247)'],
+    aurora: ['rgb(13, 17, 23)', 'rgb(238, 242, 251)'], neumorph: ['rgb(36, 38, 43)', 'rgb(230, 233, 239)'] };
+  for (const style of ['glass', 'aurora', 'neumorph', 'classic']) {
+    const got = [];
+    for (const mode of ['dark', 'light']) {
+      await exec(`window.api.setTheme('${mode}')`);
+      await exec(`window.api.setUiStyle('${style}')`);
+      await sleep(450);
+      got.push(await exec(`(() => { const bar = document.getElementById('tab-bar-container');
+        return { cls: document.body.classList.contains('style-${style}'), bg: getComputedStyle(bar).backgroundColor,
+          fx: getComputedStyle(document.querySelector('.bar-fx')).display,
+          anim: getComputedStyle(document.querySelector('.bar-fx-layer')).animationName,
+          blur: getComputedStyle(document.querySelector('.tab-item.active')).backdropFilter }; })()`));
+    }
+    check(`style ${style}: dark and light bar colours applied`,
+      got[0].cls && got[1].cls && got[0].bg === expectBar[style][0] && got[1].bg === expectBar[style][1],
+      `dark=${got[0].bg} light=${got[1].bg}`);
+    if (style === 'glass') check('style glass: active tab uses backdrop blur', /blur/.test(got[0].blur) && got[0].fx === 'block', `blur=${got[0].blur}`);
+    if (style === 'aurora') check('style aurora: backdrop animates', got[0].anim === 'auroraDrift' && got[0].fx === 'block', `anim=${got[0].anim}`);
+    if (style === 'classic') check('style classic: no decorative backdrop', got[0].fx === 'none', `fx=${got[0].fx}`);
+  }
+  const savedStyle = fs.readFileSync(path.join(app.getPath('userData'), 'settings.json'), 'utf8');
+  check('style: selection persisted to settings', /"uiStyle"\s*:\s*"classic"/.test(savedStyle));
+  await exec(`window.api.setTheme('system')`);
+  await sleep(300);
+
   const passed = results.filter(Boolean).length;
   console.log(`\n${passed}/${results.length} runtime layering checks passed`);
   app.exit(results.every(Boolean) ? 0 : 1);

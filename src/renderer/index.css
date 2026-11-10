@@ -1106,3 +1106,235 @@ body.theme-dark .tab-type-work {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* ==========================================================================
+   Visual styles (body.style-*) — each defines a dark and a light variant.
+   --bg-bar per style must match CHROME_COLORS in src/main/window-manager.ts,
+   which paints the window background and the Windows caption overlay.
+   ========================================================================== */
+
+/* Decorative backdrop behind the bar content. Only Glass and Aurora show it.
+   The right edge fades to the solid bar colour so it meets the native caption
+   buttons (which are drawn on a solid overlay) without a seam. */
+.bar-fx {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  display: none;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 230px), transparent calc(100% - 138px));
+  mask-image: linear-gradient(to right, #000 calc(100% - 230px), transparent calc(100% - 138px));
+}
+
+.bar-fx-layer {
+  position: absolute;
+  top: -60%;
+  bottom: -60%;
+  left: 0;
+  width: 100%;
+}
+
+body.style-glass .bar-fx,
+body.style-aurora .bar-fx {
+  display: block;
+}
+
+/* ---- 1. Glass: frosted cards over soft colour light ---------------------- */
+body.style-glass {
+  --bg-bar: #12141c;
+  --border-bar: rgba(255, 255, 255, 0.10);
+  --bg-tab-hover: rgba(255, 255, 255, 0.07);
+  --bg-tab-active: rgba(255, 255, 255, 0.13);
+  --tab-active-border: rgba(255, 255, 255, 0.24);
+  --tab-separator: rgba(255, 255, 255, 0.14);
+  --tab-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --text-primary: #f2f4f8;
+  --text-secondary: #c3c8d4;
+  --text-muted: #8a90a0;
+  --btn-hover-bg: rgba(255, 255, 255, 0.12);
+  --btn-hover-color: #ffffff;
+  --surface-popover: rgba(30, 34, 46, 0.92);
+  --fx-a: rgba(96, 132, 255, 0.55);
+  --fx-b: rgba(190, 96, 255, 0.45);
+  --fx-c: rgba(64, 210, 190, 0.40);
+}
+
+body.style-glass.theme-light {
+  --bg-bar: #e9eef7;
+  --border-bar: rgba(20, 30, 60, 0.10);
+  --bg-tab-hover: rgba(255, 255, 255, 0.45);
+  --bg-tab-active: rgba(255, 255, 255, 0.62);
+  --tab-active-border: rgba(255, 255, 255, 0.90);
+  --tab-separator: rgba(20, 30, 60, 0.16);
+  --tab-shadow: 0 4px 14px rgba(40, 60, 120, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --text-primary: #131722;
+  --text-secondary: #454c5e;
+  --text-muted: #7b8294;
+  --btn-hover-bg: rgba(255, 255, 255, 0.60);
+  --btn-hover-color: #131722;
+  --surface-popover: rgba(248, 250, 255, 0.94);
+  --fx-a: rgba(120, 160, 255, 0.60);
+  --fx-b: rgba(214, 150, 255, 0.50);
+  --fx-c: rgba(110, 226, 205, 0.50);
+}
+
+body.style-glass .bar-fx-layer {
+  background:
+    radial-gradient(38% 120% at 12% 50%, var(--fx-a), transparent 70%),
+    radial-gradient(34% 120% at 46% 40%, var(--fx-b), transparent 70%),
+    radial-gradient(30% 120% at 74% 60%, var(--fx-c), transparent 70%);
+  filter: blur(18px);
+}
+
+body.style-glass .tab-item.active,
+body.style-glass .tab-item:hover:not(.active),
+body.style-glass .zoom-popover,
+body.style-glass .browser-tab-item.active {
+  -webkit-backdrop-filter: blur(16px) saturate(170%);
+  backdrop-filter: blur(16px) saturate(170%);
+}
+
+body.style-glass .tab-item {
+  border-radius: 10px;
+}
+
+/* ---- 2. Aurora: slow moving colour bands -------------------------------- */
+body.style-aurora {
+  --bg-bar: #0d1117;
+  --border-bar: rgba(255, 255, 255, 0.08);
+  --bg-tab-hover: rgba(255, 255, 255, 0.07);
+  --bg-tab-active: rgba(13, 17, 23, 0.62);
+  --tab-active-border: rgba(140, 230, 210, 0.38);
+  --tab-separator: rgba(255, 255, 255, 0.14);
+  --tab-shadow: 0 0 0 1px rgba(120, 220, 200, 0.10), 0 6px 18px rgba(0, 0, 0, 0.40);
+  --text-primary: #eef3f7;
+  --text-secondary: #b9c4cf;
+  --text-muted: #7f8b97;
+  --btn-hover-bg: rgba(255, 255, 255, 0.10);
+  --btn-hover-color: #ffffff;
+  --accent-color: #3ddbb4;
+  --drag-border: #3ddbb4;
+  --surface-popover: #161c24;
+  --fx-a: rgba(41, 211, 170, 0.50);
+  --fx-b: rgba(72, 126, 255, 0.46);
+  --fx-c: rgba(170, 92, 255, 0.44);
+  --fx-d: rgba(255, 110, 170, 0.30);
+}
+
+body.style-aurora.theme-light {
+  --bg-bar: #eef2fb;
+  --border-bar: rgba(20, 30, 60, 0.10);
+  --bg-tab-hover: rgba(255, 255, 255, 0.50);
+  --bg-tab-active: rgba(255, 255, 255, 0.80);
+  --tab-active-border: rgba(40, 170, 140, 0.40);
+  --tab-separator: rgba(20, 30, 60, 0.16);
+  --tab-shadow: 0 0 0 1px rgba(40, 170, 140, 0.10), 0 6px 16px rgba(60, 80, 140, 0.14);
+  --text-primary: #101521;
+  --text-secondary: #434b5c;
+  --text-muted: #7a8294;
+  --btn-hover-bg: rgba(255, 255, 255, 0.65);
+  --btn-hover-color: #101521;
+  --accent-color: #0f9f7f;
+  --drag-border: #0f9f7f;
+  --surface-popover: #ffffff;
+  --fx-a: rgba(70, 220, 185, 0.55);
+  --fx-b: rgba(120, 160, 255, 0.52);
+  --fx-c: rgba(196, 140, 255, 0.50);
+  --fx-d: rgba(255, 160, 200, 0.42);
+}
+
+/* The layer is twice the bar width and repeats seamlessly; only `transform`
+   animates, so the motion stays on the compositor and costs no layout or
+   paint per frame. */
+body.style-aurora .bar-fx-layer {
+  width: 200%;
+  background: linear-gradient(100deg,
+    var(--fx-a) 0%, var(--fx-b) 12.5%, var(--fx-c) 25%, var(--fx-d) 37.5%,
+    var(--fx-a) 50%, var(--fx-b) 62.5%, var(--fx-c) 75%, var(--fx-d) 87.5%,
+    var(--fx-a) 100%);
+  filter: blur(14px);
+  will-change: transform;
+  animation: auroraDrift 26s linear infinite;
+}
+
+@keyframes auroraDrift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+body.style-aurora .tab-item.active {
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+/* ---- 3. Neumorphism: one surface, raised and pressed shapes -------------- */
+body.style-neumorph {
+  --bg-bar: #24262b;
+  --border-bar: transparent;
+  --bg-tab-hover: #24262b;
+  --bg-tab-active: #24262b;
+  --tab-active-border: transparent;
+  --tab-separator: transparent;
+  --neu-dark: #17181b;
+  --neu-light: #31343b;
+  --tab-shadow: inset 3px 3px 6px var(--neu-dark), inset -3px -3px 6px var(--neu-light);
+  --neu-raised: 3px 3px 6px var(--neu-dark), -3px -3px 6px var(--neu-light);
+  --text-primary: #e8eaee;
+  --text-secondary: #a9aeb8;
+  --text-muted: #747984;
+  --btn-hover-bg: #24262b;
+  --btn-hover-color: #ffffff;
+  --surface-popover: #24262b;
+}
+
+body.style-neumorph.theme-light {
+  --bg-bar: #e6e9ef;
+  --bg-tab-hover: #e6e9ef;
+  --bg-tab-active: #e6e9ef;
+  --neu-dark: #c3c7cf;
+  --neu-light: #ffffff;
+  --text-primary: #1c2028;
+  --text-secondary: #535a68;
+  --text-muted: #8a909c;
+  --btn-hover-bg: #e6e9ef;
+  --btn-hover-color: #1c2028;
+  --surface-popover: #e6e9ef;
+}
+
+body.style-neumorph .tab-item {
+  border-radius: 10px;
+  height: 30px;
+}
+
+body.style-neumorph .tab-item:hover:not(.active),
+body.style-neumorph .nav-btn:hover:not(:disabled),
+body.style-neumorph .new-tab-btn:hover {
+  box-shadow: var(--neu-raised);
+}
+
+body.style-neumorph .nav-btn:active:not(:disabled),
+body.style-neumorph .new-tab-btn:active,
+body.style-neumorph .nav-btn.active {
+  background-color: var(--bg-bar);
+  box-shadow: var(--tab-shadow);
+}
+
+body.style-neumorph .tabs-list {
+  gap: 6px;
+  padding: 0 6px;
+}
+
+/* Shared: popovers use an opaque surface in every style so text stays legible. */
+body.style-glass .update-popover,
+body.style-aurora .update-popover,
+body.style-neumorph .update-popover {
+  background: var(--surface-popover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.style-aurora .bar-fx-layer {
+    animation: none;
+  }
+}
