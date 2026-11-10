@@ -7,7 +7,9 @@ import {
   ThemeStatePayload,
   TabTypeOverride,
   LayoutMode,
-  SPLIT_GUTTER_PX
+  SPLIT_GUTTER_PX,
+  UiStyle,
+  UI_STYLES
 } from '../common/types';
 import { TabManager, TAB_BAR_HEIGHT } from './tab-manager';
 import { SideBrowserManager } from './side-browser-manager';
@@ -16,15 +18,34 @@ import { AppUpdater } from './auto-updater';
 
 const MIN_CONTENT_WIDTH_PX = 240;
 
-/** Tab bar surface; must match --bg-bar in src/renderer/index.css. */
-function chromeColor(isDark: boolean): string {
-  return isDark ? '#181818' : '#f3f3f3';
+/**
+ * Tab bar base surface per style, [dark, light]. Used for the window
+ * background and the Windows caption-button overlay; must match --bg-bar for
+ * the same style in src/renderer/index.css.
+ */
+const CHROME_COLORS: Record<UiStyle, [string, string]> = {
+  classic: ['#181818', '#f3f3f3'],
+  glass: ['#12141c', '#e9eef7'],
+  aurora: ['#0d1117', '#eef2fb'],
+  neumorph: ['#24262b', '#e6e9ef']
+};
+
+const UI_STYLE_LABELS: Record<UiStyle, string> = {
+  classic: 'Classic',
+  glass: 'Glass',
+  aurora: 'Aurora',
+  neumorph: 'Neumorphism'
+};
+
+function chromeColor(isDark: boolean, style: UiStyle): string {
+  return (CHROME_COLORS[style] || CHROME_COLORS.classic)[isDark ? 0 : 1];
 }
 
 export class WindowManager {
   private window: BrowserWindow | null = null;
   private splitDragging = false;
   private overlayReserveWidth = 0;
+  private uiStyle: UiStyle = 'classic';
   private tabManager: TabManager | null = null;
   private sideBrowserManager: SideBrowserManager | null = null;
   private settingsStore: SettingsStore;
@@ -40,8 +61,9 @@ export class WindowManager {
     const isMac = process.platform === 'darwin';
     const savedSettings = this.settingsStore.load();
 
-    // Apply persisted theme mode
+    // Apply persisted theme mode and visual style
     nativeTheme.themeSource = savedSettings.themeMode;
+    this.uiStyle = savedSettings.uiStyle;
     const isDark = nativeTheme.shouldUseDarkColors;
 
     const assetsIcon = process.platform === 'win32'
@@ -56,13 +78,13 @@ export class WindowManager {
       minWidth: 800,
       minHeight: 600,
       title: 'ChatGPT Multitask',
-      backgroundColor: chromeColor(isDark),
+      backgroundColor: chromeColor(isDark, this.uiStyle),
       icon: iconPath,
       titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
       titleBarOverlay: isMac
         ? undefined
         : {
-            color: chromeColor(isDark),
+            color: chromeColor(isDark, this.uiStyle),
             symbolColor: isDark ? '#ffffff' : '#0d0d0d',
             height: TAB_BAR_HEIGHT
           },
@@ -300,7 +322,7 @@ export class WindowManager {
       const isDark = nativeTheme.shouldUseDarkColors;
       try {
         this.window.setTitleBarOverlay({
-          color: chromeColor(isDark),
+          color: chromeColor(isDark, this.uiStyle),
           symbolColor: isDark ? '#ffffff' : '#0d0d0d',
           height: TAB_BAR_HEIGHT
         });
@@ -314,7 +336,7 @@ export class WindowManager {
     nativeTheme.on('updated', () => {
       if (!this.window || this.window.isDestroyed()) return;
       const isDark = nativeTheme.shouldUseDarkColors;
-      this.window.setBackgroundColor(chromeColor(isDark));
+      this.window.setBackgroundColor(chromeColor(isDark, this.uiStyle));
       this.updateTitleBarOverlay();
       this.notifyThemeChanged();
       this.setupApplicationMenu();
@@ -325,8 +347,64 @@ export class WindowManager {
     return {
       themeMode: (nativeTheme.themeSource as ThemeMode) || 'system',
       isDark: nativeTheme.shouldUseDarkColors,
-      systemIsDark: nativeTheme.shouldUseDarkColors
+      systemIsDark: nativeTheme.shouldUseDarkColors,
+      uiStyle: this.uiStyle
     };
+  }
+
+  /** Single entry point for changing light / dark / follow-system. */
+  private setThemeMode(mode: ThemeMode): void {
+    if (!['system', 'dark', 'light'].includes(mode)) return;
+    nativeTheme.themeSource = mode;
+    this.settingsStore.save({ themeMode: mode });
+    this.applyChromeColors();
+    this.notifyThemeChanged();
+    this.setupApplicationMenu();
+  }
+
+  private setUiStyle(style: UiStyle): void {
+    if (!UI_STYLES.includes(style)) return;
+    this.uiStyle = style;
+    this.settingsStore.save({ uiStyle: style });
+    this.applyChromeColors();
+    this.notifyThemeChanged();
+    this.setupApplicationMenu();
+  }
+
+  private applyChromeColors(): void {
+    if (!this.window || this.window.isDestroyed()) return;
+    this.window.setBackgroundColor(chromeColor(nativeTheme.shouldUseDarkColors, this.uiStyle));
+    this.updateTitleBarOverlay();
+  }
+
+  private buildAppearanceMenuItems(): MenuItemConstructorOptions[] {
+    const mode = nativeTheme.themeSource;
+    const modes: Array<[ThemeMode, string]> = [
+      ['system', 'Follow System'],
+      ['light', 'Light Mode'],
+      ['dark', 'Dark Mode']
+    ];
+    return [
+      ...modes.map(([value, label]): MenuItemConstructorOptions => ({
+        label,
+        type: 'radio',
+        checked: mode === value,
+        click: () => this.setThemeMode(value)
+      })),
+      { type: 'separator' },
+      ...UI_STYLES.map((style): MenuItemConstructorOptions => ({
+        label: `Style: ${UI_STYLE_LABELS[style]}`,
+        type: 'radio',
+        checked: this.uiStyle === style,
+        click: () => this.setUiStyle(style)
+      }))
+    ];
+  }
+
+  /** Native menu, so it is never covered by a WebContentsView. */
+  private showAppearanceMenu(): void {
+    if (!this.window || this.window.isDestroyed()) return;
+    Menu.buildFromTemplate(this.buildAppearanceMenuItems()).popup({ window: this.window });
   }
 
   private notifyThemeChanged(): void {
@@ -354,15 +432,17 @@ export class WindowManager {
 
     ipcMain.removeAllListeners(IPC_CHANNELS.SET_THEME);
     ipcMain.on(IPC_CHANNELS.SET_THEME, (_event, mode: ThemeMode) => {
-      nativeTheme.themeSource = mode;
-      this.settingsStore.save({ themeMode: mode });
-      if (this.window && !this.window.isDestroyed()) {
-        const isDark = nativeTheme.shouldUseDarkColors;
-        this.window.setBackgroundColor(chromeColor(isDark));
-        this.updateTitleBarOverlay();
-      }
-      this.notifyThemeChanged();
-      this.setupApplicationMenu();
+      this.setThemeMode(mode);
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.SET_UI_STYLE);
+    ipcMain.on(IPC_CHANNELS.SET_UI_STYLE, (_event, style: UiStyle) => {
+      this.setUiStyle(style);
+    });
+
+    ipcMain.removeAllListeners(IPC_CHANNELS.SHOW_APPEARANCE_MENU);
+    ipcMain.on(IPC_CHANNELS.SHOW_APPEARANCE_MENU, () => {
+      this.showAppearanceMenu();
     });
 
     // Zoom IPC handlers
@@ -551,8 +631,6 @@ export class WindowManager {
 
   private setupApplicationMenu(): void {
     const isMac = process.platform === 'darwin';
-    const currentMode = nativeTheme.themeSource;
-
     const template: MenuItemConstructorOptions[] = [
       ...(isMac
         ? [
@@ -632,41 +710,7 @@ export class WindowManager {
           { type: 'separator' },
           {
             label: 'Appearance',
-            submenu: [
-              {
-                label: 'Follow System',
-                type: 'radio',
-                checked: currentMode === 'system',
-                click: () => {
-                  nativeTheme.themeSource = 'system';
-                  this.settingsStore.save({ themeMode: 'system' });
-                  this.updateTitleBarOverlay();
-                  this.notifyThemeChanged();
-                }
-              },
-              {
-                label: 'Dark Mode',
-                type: 'radio',
-                checked: currentMode === 'dark',
-                click: () => {
-                  nativeTheme.themeSource = 'dark';
-                  this.settingsStore.save({ themeMode: 'dark' });
-                  this.updateTitleBarOverlay();
-                  this.notifyThemeChanged();
-                }
-              },
-              {
-                label: 'Light Mode',
-                type: 'radio',
-                checked: currentMode === 'light',
-                click: () => {
-                  nativeTheme.themeSource = 'light';
-                  this.settingsStore.save({ themeMode: 'light' });
-                  this.updateTitleBarOverlay();
-                  this.notifyThemeChanged();
-                }
-              }
-            ]
+            submenu: this.buildAppearanceMenuItems()
           },
           { type: 'separator' },
           {

@@ -2,6 +2,7 @@ type TabItem = import('../common/types').TabItem;
 type TabStatePayload = import('../common/types').TabStatePayload;
 type ThemeMode = import('../common/types').ThemeMode;
 type ThemeStatePayload = import('../common/types').ThemeStatePayload;
+type UiStyle = import('../common/types').UiStyle;
 type ConversationType = import('../common/types').ConversationType;
 type TabTypeOverride = import('../common/types').TabTypeOverride;
 type LayoutMode = import('../common/types').LayoutMode;
@@ -25,6 +26,7 @@ class AppViewController {
   private btnForward: HTMLButtonElement;
   private btnReload: HTMLButtonElement;
   private btnTheme: HTMLButtonElement | null;
+  private btnStyle: HTMLButtonElement | null;
   private btnZoom: HTMLButtonElement | null;
   private zoomPopover: HTMLElement | null;
   private btnZoomOut: HTMLButtonElement | null;
@@ -57,10 +59,11 @@ class AppViewController {
   private currentUpdateState: 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'ready' | 'error' = 'idle';
   private isCheckingUpdates: boolean = false;
   private checkRequestId: number = 0;
-  private currentAppVersion: string = '3.0.0';
+  private currentAppVersion: string = '4.0.0';
 
   // State trackers
   private currentThemeMode: ThemeMode = 'system';
+  private currentUiStyle: UiStyle = 'classic';
   private currentZoomFactor: number = 1.0;
   private currentLayoutMode: LayoutMode = 'chat-only';
   private currentSplitRatio: number = 0.5;
@@ -80,6 +83,7 @@ class AppViewController {
     this.btnForward = document.getElementById('btn-forward') as HTMLButtonElement;
     this.btnReload = document.getElementById('btn-reload') as HTMLButtonElement;
     this.btnTheme = document.getElementById('btn-theme') as HTMLButtonElement | null;
+    this.btnStyle = document.getElementById('btn-style') as HTMLButtonElement | null;
 
     // Zoom elements
     this.btnZoom = document.getElementById('btn-zoom') as HTMLButtonElement | null;
@@ -146,15 +150,19 @@ class AppViewController {
   }
 
   private applyTheme(themeOrPayload: ThemeStatePayload | 'dark' | 'light'): void {
-    let mode: ThemeMode = 'system';
+    // The legacy string event only reports the effective appearance. It must
+    // not overwrite the selected mode: doing so turned "Follow System" into
+    // "Dark"/"Light" and left the toggle stuck on machines with a light system
+    // theme.
+    let mode: ThemeMode = this.currentThemeMode;
     let isDark = false;
 
     if (typeof themeOrPayload === 'string') {
       isDark = themeOrPayload === 'dark';
-      mode = isDark ? 'dark' : 'light';
     } else if (themeOrPayload && typeof themeOrPayload === 'object') {
       mode = themeOrPayload.themeMode || 'system';
       isDark = themeOrPayload.isDark ?? (mode === 'dark');
+      this.applyUiStyle(themeOrPayload.uiStyle);
     }
 
     this.currentThemeMode = mode;
@@ -201,6 +209,18 @@ class AppViewController {
           </svg>
         `;
       }
+    }
+  }
+
+  private applyUiStyle(style: UiStyle | undefined): void {
+    const next: UiStyle = style === 'glass' || style === 'aurora' || style === 'neumorph' ? style : 'classic';
+    if (next === this.currentUiStyle && document.body.classList.contains(`style-${next}`)) return;
+    this.currentUiStyle = next;
+    document.body.classList.remove('style-classic', 'style-glass', 'style-aurora', 'style-neumorph');
+    document.body.classList.add(`style-${next}`);
+    if (this.btnStyle) {
+      const label = next === 'neumorph' ? 'Neumorphism' : next.charAt(0).toUpperCase() + next.slice(1);
+      this.btnStyle.title = `Appearance & Style (${label})`;
     }
   }
 
@@ -348,6 +368,12 @@ class AppViewController {
     if (this.btnTheme) {
       this.btnTheme.addEventListener('click', () => {
         this.cycleTheme();
+      });
+    }
+
+    if (this.btnStyle) {
+      this.btnStyle.addEventListener('click', () => {
+        window.api?.showAppearanceMenu?.();
       });
     }
 
@@ -844,7 +870,7 @@ class AppViewController {
         const notesEl = document.getElementById('update-release-notes');
 
         const currentVer = data?.currentVersion || this.currentAppVersion;
-        const latestVer = data?.latestVersion || '3.0.0';
+        const latestVer = data?.latestVersion || '4.0.0';
 
         if (currEl) currEl.textContent = `v${currentVer}`;
         if (latestEl) latestEl.textContent = `v${latestVer}`;

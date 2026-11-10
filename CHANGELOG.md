@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-11-10
+
+### Added
+
+- Three visual styles for the app chrome, each with a light and a dark
+  variant, next to the existing Classic look:
+  - **Glass** — frosted glass cards with backdrop blur over soft colour light.
+  - **Aurora** — slowly drifting colour bands behind the tab bar. Only
+    `transform` is animated, and the motion stops under "reduce motion".
+  - **Neumorphism** — one soft surface with raised and pressed shapes.
+- Appearance & Style button in the tab bar and a matching **View → Appearance**
+  menu: choose Follow System / Light / Dark and the style. The selection is
+  saved and restored on the next start.
+
+### Fixed
+
+- The light / dark toggle could get stuck. A second theme event overwrote the
+  selected mode with the effective appearance, so on a system set to light the
+  button kept re-selecting "Follow System" and nothing changed. The toggle now
+  steps Follow System → Dark → Light on every system theme.
+
+### Changed
+
+- The window background and the Windows caption-button area follow the
+  selected style and mode.
+- A manual run of the Release workflow can create its tag (`create_tag`).
+
+### Known issues
+
+- Styles apply to the app's own chrome (tab bar, side-browser header,
+  popovers). ChatGPT's page keeps its own appearance and follows the selected
+  light / dark mode only when its theme setting is "System".
+- While the update popover is open, the content area narrows by about 340px.
+- Windows builds are unsigned and may trigger SmartScreen. macOS builds are
+  unsigned and not notarized; automatic update on macOS is not validated.
+- Pointer-level interaction tests run on Linux only. Windows and macOS rely on
+  the manual checklist in `docs/RELEASE.md`.
+
 ## [3.0.0] - 2026-11-10
 
 First stable release. The version moves from 0.2.1 directly to 3.0.0.
