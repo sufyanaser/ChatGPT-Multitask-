@@ -59,7 +59,7 @@ class AppViewController {
   private currentUpdateState: 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'ready' | 'error' = 'idle';
   private isCheckingUpdates: boolean = false;
   private checkRequestId: number = 0;
-  private currentAppVersion: string = '4.1.0';
+  private currentAppVersion: string = '4.2.0';
 
   // State trackers
   private currentThemeMode: ThemeMode = 'system';
@@ -100,6 +100,9 @@ class AppViewController {
     this.btnBrowserForward = document.getElementById('btn-browser-forward') as HTMLButtonElement | null;
     this.btnBrowserReload = document.getElementById('btn-browser-reload') as HTMLButtonElement | null;
     this.inputBrowserUrl = document.getElementById('input-browser-url') as HTMLInputElement | null;
+    if (this.inputBrowserUrl) {
+      this.inputBrowserUrl.setAttribute('dir', 'auto');
+    }
     this.browserTabsList = document.getElementById('browser-tabs-list');
     this.btnBrowserNewTab = document.getElementById('btn-browser-new-tab') as HTMLButtonElement | null;
     this.btnModeChatOnly = document.getElementById('btn-mode-chat-only') as HTMLButtonElement | null;
@@ -889,7 +892,7 @@ class AppViewController {
         const notesEl = document.getElementById('update-release-notes');
 
         const currentVer = data?.currentVersion || this.currentAppVersion;
-        const latestVer = data?.latestVersion || '4.1.0';
+        const latestVer = data?.latestVersion || '4.2.0';
 
         if (currEl) currEl.textContent = `v${currentVer}`;
         if (latestEl) latestEl.textContent = `v${latestVer}`;
@@ -1507,6 +1510,7 @@ class AppViewController {
 
         const bTitle = document.createElement('span');
         bTitle.className = 'browser-tab-title';
+        bTitle.setAttribute('dir', 'auto');
         bTitle.textContent = tab.title || (tab.url.replace(/^https?:\/\//, '') || 'New Tab');
 
         const bClose = document.createElement('button');

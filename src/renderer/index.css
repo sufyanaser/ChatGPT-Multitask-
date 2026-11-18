@@ -7,6 +7,7 @@
 }
 
 :root {
+  --font-ui: 'IBM Plex Sans Arabic', 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   /* Default Dark Mode (ChatGPT Modern Palette) */
   --bg-bar: #181818;
   --border-bar: rgba(255, 255, 255, 0.08);
@@ -19,7 +20,7 @@
   --tab-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   --text-primary: #ececec;
   --text-secondary: #b4b4b4;
-  --text-muted: #737373;
+  --text-muted: #949494;
   --btn-hover-bg: rgba(255, 255, 255, 0.08);
   --btn-hover-color: #ffffff;
   --accent-color: #10a37f;
@@ -39,7 +40,7 @@
     --tab-shadow: 0 1px 2px rgba(0, 0, 0, 0.10), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
     --text-primary: #0d0d0d;
     --text-secondary: #5d5d5d;
-    --text-muted: #9b9b9b;
+    --text-muted: #6b6b6b;
     --btn-hover-bg: rgba(0, 0, 0, 0.06);
     --btn-hover-color: #0d0d0d;
     --accent-color: #10a37f;
@@ -60,7 +61,7 @@ body.theme-light {
   --tab-shadow: 0 1px 2px rgba(0, 0, 0, 0.10), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
   --text-primary: #0d0d0d;
   --text-secondary: #5d5d5d;
-  --text-muted: #9b9b9b;
+  --text-muted: #6b6b6b;
   --btn-hover-bg: rgba(0, 0, 0, 0.06);
   --btn-hover-color: #0d0d0d;
   --accent-color: #10a37f;
@@ -79,7 +80,7 @@ body.theme-dark {
   --tab-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   --text-primary: #ececec;
   --text-secondary: #b4b4b4;
-  --text-muted: #737373;
+  --text-muted: #949494;
   --btn-hover-bg: rgba(255, 255, 255, 0.08);
   --btn-hover-color: #ffffff;
   --accent-color: #10a37f;
@@ -95,13 +96,17 @@ body.theme-dark {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-ui), -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background-color: var(--bg-bar);
   color: var(--text-primary);
   overflow: hidden;
   height: 100vh;
   user-select: none;
   transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
 }
 
 button:focus-visible, input:focus-visible, .tab-item:focus-visible {
@@ -458,14 +463,14 @@ body.theme-dark .tab-type-work {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  margin-inline-start: 4px;
+  margin-inline-start: 3px;
   transition: background-color 0.15s ease, color 0.15s ease;
   -webkit-app-region: no-drag;
   flex-shrink: 0;
@@ -600,8 +605,26 @@ body.theme-dark .tab-type-work {
   transition: background-color 0.15s ease;
 }
 
-.split-divider:hover, .split-divider.dragging {
+.split-divider::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background-color: var(--border-bar);
+  transition: background-color 0.15s ease;
+  pointer-events: none;
+}
+
+.split-divider:hover::after,
+.split-divider.dragging::after {
   background-color: var(--accent-color);
+}
+
+.split-divider:hover, .split-divider.dragging {
+  background-color: rgba(16, 163, 127, 0.15);
 }
 
 .split-divider.hidden {
@@ -661,6 +684,8 @@ body.theme-dark .tab-type-work {
   padding: 0 8px;
   font-size: 11.5px;
   box-sizing: border-box;
+  unicode-bidi: plaintext;
+  text-align: start;
   transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
@@ -712,6 +737,8 @@ body.theme-dark .tab-type-work {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+  unicode-bidi: plaintext;
+  text-align: start;
 }
 
 .browser-tab-close {
@@ -1019,6 +1046,8 @@ body.theme-dark .tab-type-work {
   color: var(--text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
+  unicode-bidi: plaintext;
+  text-align: start;
 }
 
 .update-progress-track {
@@ -1516,5 +1545,24 @@ body.style-mica .tab-item + .tab-item::before {
 @media (prefers-reduced-motion: reduce) {
   body.style-liquid .bar-fx-layer {
     animation: none;
+  }
+}
+
+/* Retina 0.5px subtle border hierarchy */
+@media (-webkit-min-device-pixel-ratio: 2) {
+  .tab-bar-container {
+    border-bottom-width: 0.5px;
+  }
+  .browser-header {
+    border-bottom-width: 0.5px;
+  }
+  .split-divider::after {
+    width: 0.5px;
+  }
+  .update-popover-header {
+    border-bottom-width: 0.5px;
+  }
+  .update-popover-footer {
+    border-top-width: 0.5px;
   }
 }

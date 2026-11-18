@@ -135,4 +135,28 @@ if (!hasXdotool) {
   }
 }
 
+// 10. Run typography verification
+console.log('--- Step 10: Typography & Font Verification ---');
+const typoRes = spawnSync('node', [path.join(__dirname, '../tests/verify-typography.js')], {
+  stdio: 'inherit',
+  env: process.env
+});
+
+if (typoRes.status !== 0) {
+  console.error('Typography verification failed with code', typoRes.status);
+  process.exit(typoRes.status || 1);
+}
+
+// 11. Run macOS UI consistency verification
+console.log('--- Step 11: macOS UI Consistency Verification ---');
+const uiRes = spawnSync('node', [path.join(__dirname, '../tests/verify-ui-mac-consistency.js')], {
+  stdio: 'inherit',
+  env: process.env
+});
+
+if (uiRes.status !== 0) {
+  console.error('macOS UI consistency verification failed with code', uiRes.status);
+  process.exit(uiRes.status || 1);
+}
+
 console.log('\nAll tests passed successfully!');

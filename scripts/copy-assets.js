@@ -15,9 +15,9 @@ function copyDir(src, dest) {
     if (entry.isDirectory()) {
       copyDir(srcPath, destPath);
     } else if (entry.isFile()) {
-      // Copy html, css, svg, json, png assets
+      // Copy html, css, svg, json, png, font assets
       const ext = path.extname(entry.name).toLowerCase();
-      if (['.html', '.css', '.svg', '.json', '.png', '.jpg', '.ico'].includes(ext)) {
+      if (['.html', '.css', '.svg', '.json', '.png', '.jpg', '.ico', '.ttf', '.woff', '.woff2', '.txt'].includes(ext)) {
         fs.copyFileSync(srcPath, destPath);
       }
     }

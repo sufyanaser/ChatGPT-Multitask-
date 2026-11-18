@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-11-18
+
+### Added
+
+- **IBM Plex Sans Arabic Typography**: Bundled local font family (weights 400,
+  500, 600, 700) licensed under SIL Open Font License 1.1 for Electron application
+  chrome with non-blocking `font-display: swap` startup.
+- **Retina Border Hierarchy**: 0.5px subtle hairline dividers across application
+  chrome (`.browser-header`, `.split-divider::after`, `.update-popover-header`,
+  `.update-popover-footer`) on High-DPI and Retina displays.
+- **macOS Subdued Split Divider**: Subdued hairline divider with accent highlight
+  on hover/dragging and ergonomic 6px grab zone.
+- **Bidirectional Consistency**: Native auto-direction (`dir="auto"`) and
+  `unicode-bidi: plaintext` for tab titles, side-browser address bar, and popovers.
+
+### Changed
+
+- Unified `.new-tab-btn` control sizing to 26px x 26px with 6px corner radius,
+  matching macOS navigation controls.
+- Refined `--text-muted` color tokens in Light (`#6b6b6b`) and Dark (`#949494`)
+  modes for full WCAG AA contrast compliance across all appearance styles.
+- Updated asset build pipeline in `scripts/copy-assets.js` to mirror font binaries.
+
 ## [4.1.0] - 2026-11-10
 
 ### Changed
